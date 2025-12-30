@@ -1,6 +1,8 @@
 # pan-cancer-sncRNA-atlas
-code repo for pan-cancer sncRNA atlas analysis
 
+- code repo for pan-cancer sncRNA atlas analysis (raw scripts)
+
+- some other scripts were within cfPeak repo (https://github.com/HUNNNGRY/cfPeak/tree/master/scripts)
 
 
 # Contact
@@ -10,5 +12,5 @@ code repo for pan-cancer sncRNA atlas analysis
 
 
 # References
-P. Bao et al., 2026, Comprehensive Mapping of Non-Canonical Small RNA regions Across Human Cancers. bioRxiv.
+P. Bao et al., 2026, The Catalogue of Non-Canonical Small RNA regions Across Human Cancers. Submitted.
 
