@@ -12,6 +12,9 @@ source("/lulabdata3/baopengfei/projects/WCHSU-FTC/exSeek-dev/scripts/util.R")
 dst <- "TCGA_small16"
 dedup <- "_all"
 pre <- "/lulabdata3/baopengfei/projects/WCHSU-FTC"
+# dst <- "SLE"
+# dedup <- "_dedup"
+# pre <- "/data2/lulab1/bpf/projects/WCHSU-FTC"
 outSurfix <- "_rmPurity"
 species1 <- "hg38"
 extLen <- 75 #0
@@ -279,6 +282,12 @@ featureLab <- c(rna2,dna)
   tmp.diff <- tmp.diff[tmp >= 16,]
   select.features <- tmp.diff$feature
   
+  # tmp.diff2 <- data.table::fread( paste0("./output/",dst,"/","diff.summary"),header = T,sep = '\t',check.names = F,stringsAsFactors = F,data.table = F)
+  # #colnames(tmp.diff2)
+  # tmp.diff2 <- tmp.diff2[,grepl(paste0( c("feature",this.cells), collapse = "|"),colnames(tmp.diff2),perl = T)]
+  # table(tmp.diff2$LUAD)
+  # tmp.diff2 <- tmp.diff2[tmp.diff2$LUAD %in% c("Both significant","Metastasis only","Tumorigenesis only"),]
+  # select.features <- tmp.diff2$feature
   
   tmp <- unlist(sapply(strsplit(select.features,"|",fixed = T),"[",8))
   table(tmp)
@@ -293,7 +302,15 @@ featureLab <- c(rna2,dna)
   select.features <-  unlist(sapply(strsplit(select.features,"|",fixed = T),"[",4))
 
 }
+#peak_17765: chr3:169764610-169764655  45nt (lncRNA TERC)
+#peak_14288: chr14:20343149-20343273 24nt (lncRNA AL355075)
+#this.peak <- "peak_124" # peak_16597
+#peak.table.tmp <- peak.table[peak.table$gn=="chr3" & abs(peak.table$gn_start-169764610)<=50 & abs(peak.table$gn_end-169764655)<=50,]
+#peak.table.tmp <- peak.table[peak.table$gn=="chr14" & abs(peak.table$gn_start-20343115)<=50 & abs(peak.table$gn_end-20343273)<=50,]
 
+#peak_24038
+# peak_48574,hsa_piR_020345,chr19:47907760-47907781
+# peak_28885,LTR16E2__chr3___84299204____84299581_neg,chr3:84299383-84299399 (-)
 
 #rownames(peak.table) <- peak.table$name
 peak.table.tmp <- peak.table[select.features,]
@@ -323,6 +340,12 @@ for(this.peak in this.peaks){
     #print(myFirstAlignment, show="complete")
     
     ## op1: plot multi-align
+    # msaPrettyPrint(myFirstAlignment, output="pdf", showNames="none",
+    #                showLogo="none", askForOverwrite=FALSE, verbose=FALSE)
+    # msaPrettyPrint(myFirstAlignment, output="pdf", y=c(164, 213),
+    #                subset=c(1:6), showNames="none", showLogo="top",
+    #                logoColors="rasmol", shadingMode="similar",
+    #                showLegend=FALSE, askForOverwrite=FALSE)
     alignFa <- paste0(outDir,"/",this.peak,".fasta")
     outFig <- paste0(outDir,"/",this.peak,".seq.pdf")
     tmpFig <- paste0("./",this.peak,".seq.pdf")
@@ -339,6 +362,21 @@ for(this.peak in this.peaks){
     #opt1: identity score
     tmp <- calculate_identity_matrix(Biostrings::DNAStringSet(myFirstAlignment))
 
+    #opt2: identity score (seem not correct)
+    # myFirstAlignment2 <- msaConvert(myFirstAlignment, type="seqinr::alignment")
+    # d <- dist.alignment(myFirstAlignment2, matrix="identity",gap=F) # for protein: c("identity", "similarity"), for DNA/RNA: identity (and seem not correct)
+    # tmp <- as.matrix(d)  # distance matrix
+    
+    #hsa-miR-148b
+    #dist.mat <- distance(birds.t, method = "jaccard")
+    #true.dist.mat <- as.dist(dist.mat)
+    #clust.res <- hclust(true.dist.mat, method = "complete")
+    
+    
+    #d <- colnames(d)
+    #library(ape)
+    #hemoTree <- ape::nj(d)  # Neighbor-Joining Tree Estimation, d may be an object of class “dist”
+    # hemoTree2 <- stats::hclust(d,method = "complete")  # method: "ward.D", "ward.D2", "single", "complete", "average", "mcquitty", "median", "centroid"
     hemoTree2 <- stats::hclust(as.dist(tmp),method = "complete")  # method: "ward.D", "ward.D2", "single", "complete", "average", "mcquitty", "median", "centroid"
     
     #plot with ggdendro
@@ -460,6 +498,7 @@ duplicated(c(1:4,2:5))
 table(duplicated(myFirstAlignmentSeq$name)) # rm uniq rows
 dup.name <- unique(myFirstAlignmentSeq$name[duplicated(myFirstAlignmentSeq$name)])
 myFirstAlignmentSeq <- myFirstAlignmentSeq[myFirstAlignmentSeq$name %in% dup.name,]
+#myFirstAlignmentSeq <- myFirstAlignmentSeq[,]
 
 
 ## select candidates
@@ -475,7 +514,13 @@ featureLab <- c(rna2,dna)
   table(tmp >= 6)
   tmp.diff <- tmp.diff[tmp >= 6,]
   select.features <- tmp.diff$feature
-
+  
+  # tmp.diff2 <- data.table::fread( paste0("./output/",dst,"/","diff.summary"),header = T,sep = '\t',check.names = F,stringsAsFactors = F,data.table = F)
+  # #colnames(tmp.diff2)
+  # tmp.diff2 <- tmp.diff2[,grepl(paste0( c("feature",this.cells), collapse = "|"),colnames(tmp.diff2),perl = T)]
+  # table(tmp.diff2$LUAD)
+  # tmp.diff2 <- tmp.diff2[tmp.diff2$LUAD %in% c("Both significant","Metastasis only","Tumorigenesis only"),]
+  # select.features <- tmp.diff2$feature
   
   tmp <- unlist(sapply(strsplit(select.features,"|",fixed = T),"[",8))
   table(tmp)
@@ -494,7 +539,19 @@ featureLab <- c(rna2,dna)
   }
   
 }
+#peak_17765: chr3:169764610-169764655  45nt (lncRNA TERC
+#peak_14288: chr14:20343149-20343273 24nt (lncRNA AL355075)
+#this.peak <- "peak_124" # peak_16597
+#peak.table.tmp <- peak.table[peak.table$gn=="chr3" & abs(peak.table$gn_start-169764610)<=50 & abs(peak.table$gn_end-169764655)<=50,]
+#peak.table.tmp <- peak.table[peak.table$gn=="chr14" & abs(peak.table$gn_start-20343115)<=50 & abs(peak.table$gn_end-20343273)<=50,]
 
+
+
+## by each RNA topN conserved & diff
+# outSurfix <- "_rmMonthOperator"
+# diffSig <- read.table(paste0("./output/",dst,"/cfPeakCNN_smallDomain_diff",outSurfix,".diffSig"),header = T,sep = '\t')(
+#dim(diffSig)
+c(rna,dna)
 outpre="/lulabdata3/baopengfei/projects/WCHSU-FTC"
 #outpre="/data2/lulab1/bpf/projects/WCHSU-FTC"
 for(this.RNA in c("mRNA","lncRNA","tRNA","enhancer","promoter","ktRNA","pri_miRNA","piRNA","repeats")){ # rRNA: error
@@ -667,7 +724,13 @@ for(this.RNA in c("mRNA","lncRNA","tRNA","enhancer","promoter","ktRNA","pri_miRN
                      filename = paste0(outDir,"/",this.RNA,"_seq_jac_mat.png")
   )
 }
+# peak.table <- peak.table[!grepl(",",peak.table$gn_blockSizes),]
+# peak.table <- peak.table[,7:12]
+# colnames(peak.table) <- c("seqnames","start","end","name","score","strand")
+# 
+# signal.gr <- rtracklayer::import.bw(con=as.character("/lulabdata3/baopengfei/shared_reference/ucsc/conservation/hg38.phastCons100way.bw"),which=GenomicRanges::makeGRangesFromDataFrame(peak.table)) # import(.bed) got error if input bed not proper formated
 
+#
 
 
 
@@ -680,27 +743,35 @@ pre <- "/lulabdata3/baopengfei/projects/WCHSU-FTC"
 #peak.table <- data.table::fread(paste0(pre,"/output/",dst,"/call_peak",dedup,"/cfpeakCNN/b5_d50_p1.summary"),sep='\t',header = T,data.table = F,check.names = F,stringsAsFactors = F)
 #rownames(peak.table) <- peak.table$name
 peak.table$deltaCons <- peak.table$phastCons100way-peak.table$phastCons100way_flank
-hist(peak.table$deltaCons,breaks = 100)
+summary(peak.table$deltaCons,breaks = 100)
 
-peak.table.tmp <- peak.table
+table((peak.table$phastCons100way==0) & (peak.table$phastCons100way_flank==0))
+peak.table.tmp <- peak.table[(peak.table$phastCons100way!=0) & !is.na(peak.table$phastCons100way),]
 peak.table.tmp <- peak.table.tmp[order(peak.table.tmp$deltaCons,decreasing = T),]
 peak.table.tmp$rank <- 1:nrow(peak.table.tmp)
-peak.table.tmp <- peak.table.tmp[order(peak.table.tmp$deltaCons,decreasing = T),c("name","rank","deltaCons","tx_type","tx")]
-peak.table.tmp$tx_type <- factor(peak.table.tmp$tx_type, levels = c(dna,rna))
-ggplot(peak.table.tmp,aes(x=rank,y=deltaCons,fill=tx_type))+  # ,label=label
-  # geom_boxplot(aes(x=(group),y=value,fill=group),color="black",alpha=0.6,outlier.size = 0) +
-  geom_point(
-    # aes(x=(as.numeric(group)+b),y=value,fill=group),
-             shape=21,
-             size=2,stroke=0.2,alpha=0.9,color="grey20"
-    ) +
+peak.table.tmp <- peak.table.tmp[order(peak.table.tmp$deltaCons,decreasing = T),c("name","rank","deltaCons","gn_type","tx")]
+peak.table.tmp$gn_type <- factor(peak.table.tmp$gn_type, levels = c(rna2,dna))
+table(peak.table.tmp$gn_type)
+p1 <- ggplot(peak.table.tmp,aes(x=gn_type,y=deltaCons,fill=gn_type))+  # ,label=label
+  geom_boxplot(aes(x=(gn_type),y=deltaCons,fill=gn_type),color="black",alpha=0.6,outlier.size = 0) +
+  # geom_point(
+  #   # aes(x=(as.numeric(group)+b),y=value,fill=group),
+  #            shape=21,
+  #            size=2,stroke=0.2,alpha=0.9,color="grey20"
+  #   ) +
   scale_fill_manual(values = RNA_colors) +
   # scale_x_discrete(label=c("CT","CN","PT","PN","RT","RN"))+
-  #ylim(c(0,1)) +
-  labs(title = "deltaCons rank")+
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = "deltaCons")+
   #ylab("ssGSEA score")+
   ylab("deltaCons")+
   xlab("") +
+  # ggpubr::stat_compare_means(
+  #   comparisons = list( c("HC","LDA"),c("LDA","HDA"),c("HC","HDA") ),
+  #   label.x.npc = 0.5,hide.ns=F,size =8, vjust = 0.5, step.increase = 0.04,#paired = TRUE,
+  #   aes(label = p.signif), # p.signif, group = Group,
+  #   symnum.args=list(cutpoints = c(0, 0.001, 0.01, 0.05, 0.1,1),symbols = c( "****","***", "**", "*", "ns")),
+  #   method = "wilcox.test") +
   theme_minimal(base_size=12) +
   theme(#axis.ticks.x=element_blank(),
     aspect.ratio = 1,
@@ -709,26 +780,36 @@ ggplot(peak.table.tmp,aes(x=rank,y=deltaCons,fill=tx_type))+  # ,label=label
     strip.text.x = element_text(family="sans",size=20), # serif
     axis.title.x = element_text(family="sans",size=20),
     axis.title.y = element_text(family="sans",size=20),
-    axis.text.x = element_blank(),#element_text(size = 20,family="sans",angle = 45,hjust=1,vjust=1),
+    axis.text.x = element_text(size = 20,family="sans",angle = 45,hjust=1,vjust=1),
     axis.text.y = element_text(size = 20,family="sans"),
     plot.title = element_text(size=20),
-    legend.position = "none",
+    legend.position = "right",
     panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank()) +
-  facet_wrap(facets = "tx_type", scales = "free_y",ncol = 4 )
-ggsave("./figure/rank_delta.pdf",height = 8, width = 10)
+    panel.grid.minor = element_blank())
+  # facet_wrap(facets = "tx_type", scales = "free_y",ncol = 4 )
+ggsave(plot = p1, "./figure/rank_delta_gn.pdf",height = 8, width = 10)
 
 
 #peak.table.tmp2[1:3,]
 colnames(peak.table)
-peak.table.tmp2 <- dplyr::as_tibble(peak.table) %>% 
-  dplyr::select(name,phastCons100way,phastCons100way_flank,tx_type) %>% 
+table((peak.table$phastCons100way==0) & (peak.table$phastCons100way_flank==0))
+table(is.na(peak.table$phastCons100way))
+peak.table.tmp2 <- peak.table[(peak.table$phastCons100way!=0) & !is.na(peak.table$phastCons100way),]
+peak.table.tmp2 <- dplyr::as_tibble(peak.table.tmp2) %>% 
+  dplyr::select(name,phastCons100way,phastCons100way_flank,gn_type) %>% 
   tidyr::pivot_longer(cols = c("phastCons100way","phastCons100way_flank"),names_to = "region",values_to = "phastCons") %>% 
   as.data.frame()
-peak.table.tmp2$tx_type <- factor(peak.table.tmp2$tx_type, levels = c(dna,rna))
+# peak.table.tmp2$tx_type <- factor(peak.table.tmp2$tx_type, levels = c(dna,rna))
+peak.table.tmp2$gn_type <- factor(peak.table.tmp2$gn_type, levels = c(rna2,dna))
+table(peak.table.tmp2$gn_type)
 library(ggpubr)
-ggplot(peak.table.tmp2,aes(x=tx_type,y=phastCons,fill=region))+  # ,label=label
+p2 <- ggplot(peak.table.tmp2,aes(x=gn_type,y=phastCons,fill=region))+  # ,label=label
   geom_boxplot(color="black",alpha=0.8,outlier.size = 0,outlier.colour = "white") +
+  # geom_point(
+  #   # aes(x=(as.numeric(group)+b),y=value,fill=group),
+  #   shape=21,
+  #   size=2,stroke=0.2,alpha=0.9,color="grey20"
+  # ) +
   scale_fill_manual(values = c("phastCons100way"="red","phastCons100way_flank"="salmon")) + #RNA_colors
   # scale_x_discrete(label=c("CT","CN","PT","PN","RT","RN"))+
   ylim(c(0,1.2)) +
@@ -743,7 +824,9 @@ ggplot(peak.table.tmp2,aes(x=tx_type,y=phastCons,fill=region))+  # ,label=label
     # aes(label = "p.signif"), # p.signif, group = Group,
     label="p.signif",
     symnum.args=list(cutpoints = c(0, 0.0001,0.001, 0.01, 0.05,1),symbols = c( "****","***", "**", "*", "ns")),
-    method = "wilcox.test") +
+    method = "wilcox.test",
+    method.args = list(alternative = "less")  #
+  ) +
   theme_minimal(base_size=12) +
   theme(#axis.ticks.x=element_blank(),
     aspect.ratio = 0.5,
@@ -759,12 +842,86 @@ ggplot(peak.table.tmp2,aes(x=tx_type,y=phastCons,fill=region))+  # ,label=label
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank())
   # facet_wrap(facets = "tx_type", scales = "free_y",ncol = 4 )
-ggsave("./figure/phastCons_flank_box.pdf",height = 8, width = 12)
+ggsave(plot=p2, "./figure/phastCons_flank_box_gn.pdf",height = 8, width = 12)
 #
 
 
+
+
+# merge plot
+library(cowplot)
+my_theme <- theme_minimal(base_size = 12) +
+  theme(
+    aspect.ratio = NULL,
+    strip.text.y = element_blank(),
+    strip.text.x = element_text(family = "sans", size = 20),
+    axis.title.x = element_text(family = "sans", size = 20),
+    axis.title.y = element_text(family = "sans", size = 20),
+    axis.text.x  = element_text(size = 20, family = "sans", angle = 45, hjust = 1, vjust = 1),
+    axis.text.y  = element_text(size = 20, family = "sans"),
+    plot.title   = element_text(size = 20),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+# 3) p1
+p1 <- ggplot(peak.table.tmp, aes(x = gn_type, y = deltaCons, fill = gn_type)) +
+  geom_boxplot(color = "black", alpha = 0.95, outlier.size = 0) +
+  scale_fill_manual(values = RNA_colors) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed", linewidth = 1) +
+  labs(y = "Delta phastCons", x = NULL, fill = "Precursor") +
+  my_theme +
+  theme(
+    legend.position = "right",
+    plot.margin  = margin(0, 5.5, 0, 5.5)   # 底部 margin 设 0
+  )
+
+# 4) p2
+p2 <- ggplot(peak.table.tmp2, aes(x = gn_type, y = phastCons, fill = region)) +
+  geom_boxplot(color = "black", alpha = 0.95, outlier.size = 0, outlier.colour = "white") +
+  scale_fill_manual(values = c("phastCons100way" = "red",
+                               "phastCons100way_flank" = "salmon")) +
+  ylim(c(0, 1.2)) +
+  geom_hline(yintercept = 0.5, color = "grey", linetype = "dashed", linewidth = 1) +
+  labs(y = "PhastCons", x = "") +
+  ggpubr::stat_compare_means(
+    label.x.npc = 0.5, hide.ns = FALSE, size = 8, vjust = 0.5, step.increase = 0.04,
+    label = "p.signif",
+    symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1),
+                       symbols = c("****", "***", "**", "*", "ns")),
+    method = "wilcox.test",
+    method.args = list(alternative = "less")
+  ) +
+  my_theme +
+  theme(
+    legend.position = "none",
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.x = element_blank(),
+    axis.line.x  = element_blank(),
+    plot.margin  = margin(5.5, 5.5, 0, 5.5)   #
+  )
+
+# 下面的 p1：保留 x 轴
+p12 <- plot_grid(
+  p2, p1,
+  ncol        = 1,
+  align       = "v",       
+  axis        = "tblr",   
+  rel_heights = c(1, 1.2),
+  labels      = NULL
+) 
+ggsave(plot=p12, "./figure/phastCons_flank_box_gn_merge.png",height = 7, width = 12)
+#
+
+
+
 # cor: DEG Freq. vs PhastCons ----------------
+#consensus.diff <- data.table::fread(paste0("/lulabdata3/baopengfei/smb/",dst,"_candidate_diff_summary.txt.tmp"), sep = "\t",header = T, stringsAsFactors = F, check.names = F, data.table = F)
 consensus.diff <- data.table::fread(paste0("/lulabdata3/baopengfei/smb/",dst,"_candidate_diff_summary.txt.tmp2"), sep = "\t",header = T, stringsAsFactors = F, check.names = F, data.table = F)
+#rownames(peak.table)
+#dim(consensus.diff)
+#consensus.diff$phastCons100way
 tmp1 <- peak.table[consensus.diff$name,c("name","phastCons100way","phastCons100way_flank")]
 #tmp1 <- tmp1
 cor.test(tmp1$phastCons100way,consensus.diff$unionSigup)
@@ -777,6 +934,8 @@ df.tmp <- as.data.frame(rbind(df.tmp,df.tmp1))
 table(duplicated(df.tmp$name))
 ggplot(df.tmp, aes(x=DES_Freq, y=phastCons) ) + # type2, type3
   geom_point() + # fill="grey",color="grey",  minus.log10.padj
+  # scale_color_continuous(name="-log10.P",type = "viridis") + # YlOrRd, viridis RColorBrewer::brewer.pal(n=8,name="Reds")
+  # scale_size_continuous(name = sizeLab) +
   ylab("") + 
   xlab("") + 
   theme_minimal() +  # base_size=12 void
