@@ -1,0 +1,28 @@
+# ---- per-user configuration (never commit machine-specific paths) ----------
+scripts/config.local.R
+
+# ---- analysis output -------------------------------------------------------
+figure/
+output/
+tmp/
+logs/
+slurm-*.out
+
+# ---- R ---------------------------------------------------------------------
+.Rhistory
+.Rapp.history
+.RData
+.Ruserdata
+.Rproj.user/
+*.Rproj
+renv/library/
+
+# ---- editors / sync tools --------------------------------------------------
+.vscode/
+.vscode-upload.json
+.idea/
+*.swp
+
+# ---- OS --------------------------------------------------------------------
+.DS_Store
+Thumbs.db

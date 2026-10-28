@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript 
 
-options(stringsAsFactors = F) # important !
+options(stringsAsFactors = FALSE) # important !
 Sys.setenv("R_MAX_VSIZE" = "100Gb")  # Increase memory limit
 options(expressions = 500000)  # Increase expression limit (default is 5000)
 #Rscript random_forest_tissue_classification_cv_v2.R --feature_matrix path_to_feature_matrix.tsv --annotation path_to_annotation.tsv --trees 500 --mtry 10 --folds 5 --scaling standard --output output_directory/ --model_output saved_model.rds
@@ -49,9 +49,9 @@ for(i in 1:length(args)){
 
 
 # # test
-# feature_matrix="/lulabdata3/baopengfei/projects/WCHSU-FTC/output/TCGA_small16/call_peak_all/count_matrix/cfpeakCNN_b5_d50_p1_CPM.txt"
-# annotation="/lulabdata3/baopengfei/projects/WCHSU-FTC/exSeek-dev/data/TCGA_small16/sample_table_NC_TOO.txt"
-# output="/lulabdata3/baopengfei/projects/motif-RBP-EDA/output/TCGA_small16/TOO/"
+# feature_matrix="${SNCRNA_HOME}/projects/WCHSU-FTC/output/TCGA_small16/call_peak_all/count_matrix/cfpeakCNN_b5_d50_p1_CPM.txt"
+# annotation="${SNCRNA_HOME}/projects/WCHSU-FTC/exSeek-dev/data/TCGA_small16/sample_table_NC_TOO.txt"
+# output="${SNCRNA_HOME}/projects/motif-RBP-EDA/output/TCGA_small16/TOO/"
 # scaling="standard"
 # folds=5
 # feature_selection=1000
@@ -61,12 +61,12 @@ for(i in 1:length(args)){
 
 # run
 # Load the feature matrix and annotation table (assuming TSV format)
-# feature_matrix <- read.csv(feature_matrix, sep="\t", row.names=1, header = T, check.names = F, stringsAsFactors = F)
-# annotation <- read.csv(annotation, sep="\t", header = T, check.names = F, stringsAsFactors = F)
-feature_matrix <- fread(feature_matrix, sep="\t", header=TRUE, check.names = F, stringsAsFactors = F, data.table = F)
+# feature_matrix <- read.csv(feature_matrix, sep="\t", row.names=1, header = TRUE, check.names = FALSE, stringsAsFactors = FALSE)
+# annotation <- read.csv(annotation, sep="\t", header = TRUE, check.names = FALSE, stringsAsFactors = FALSE)
+feature_matrix <- fread(feature_matrix, sep="\t", header=TRUE, check.names = FALSE, stringsAsFactors = FALSE, data.table = FALSE)
 rownames(feature_matrix) <- feature_matrix[,1]
 feature_matrix[,1] <- NULL
-annotation <- fread(annotation, sep="\t", header=TRUE, check.names = F, stringsAsFactors = F, data.table = F)
+annotation <- fread(annotation, sep="\t", header=TRUE, check.names = FALSE, stringsAsFactors = FALSE, data.table = FALSE)
 
 rownames(annotation) <- annotation$sample
 sid <- intersect(colnames(feature_matrix),annotation$sample)
@@ -116,7 +116,7 @@ feature_matrix <- t(feature_matrix)
 #dplyr::mutate(across(, ~as.numeric(.)))
 feature_matrix <- apply(feature_matrix,2,as.numeric)
 colnames(feature_matrix) <- feature_matrix_row_names[top_features_idx]
-colnames(feature_matrix) <- unlist(sapply(strsplit(colnames(feature_matrix),"|",fixed = T),"[",4))
+colnames(feature_matrix) <- unlist(sapply(strsplit(colnames(feature_matrix),"|",fixed = TRUE),"[",4))
 rownames(feature_matrix) <- feature_matrix_col_names
 
 # Ensure that the sample names in the annotation match the feature matrix

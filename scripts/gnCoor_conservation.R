@@ -1,54 +1,42 @@
-setwd("/lulabdata3/baopengfei/projects/motif-RBP-EDA/")
-options(scipen = 4,stringsAsFactors = F,digits = 5,stringsAsFactors = F)
-options(bedtools.path = "/lulabdata3/baopengfei/biosoft")
+# Paths and global options come from scripts/config.R; peak.table, cellShort,
+# rna2, dna and the colour palettes come from scripts/TCGA_sncRNA_util.R.
+# Run this script from the repository root.
+source("scripts/config.R")
+source("scripts/TCGA_sncRNA_util.R")
+setwd(PROJECT_DIR)
+
 library(bedtoolsr)
 library(GenomicRanges)
 
-source("/lulabdata3/baopengfei/projects/WCHSU-FTC/exSeek-dev/scripts/util.R")
+source(file.path(EXSEEK_SCRIPTS_DIR, "util.R"))
 #
 
 
 
-dst <- "TCGA_small16"
-dedup <- "_all"
-pre <- "/lulabdata3/baopengfei/projects/WCHSU-FTC"
-# dst <- "SLE"
-# dedup <- "_dedup"
-# pre <- "/data2/lulab1/bpf/projects/WCHSU-FTC"
 outSurfix <- "_rmPurity"
 species1 <- "hg38"
 extLen <- 75 #0
-fromCenter <- T #F
-gnDir <- "/lulabdata3/baopengfei/shared_reference/genomes"
+fromCenter <- TRUE
+gnDir <- GENOME_DIR
 outDir <- paste0("output/",dst,"/conservation")
-dir.create(outDir)
+dir.create(outDir, recursive = TRUE, showWarnings = FALSE)
 liftOverVec <- c("panTro5","gorGor5","macFas5","mm10","rn6","susScr11","bosTau8","canFam3","felCat8","monDom5")
 
 
 
 # prep genomes in batch ---------
-# Define a list of species combinations with their corresponding chain file URLs
-# species_combinations <- list(
-#   c("hg38", "mm10", paste0("https://hgdownload.soe.ucsc.edu/goldenPath/hg38/liftOver/hg38To",tocapital("mm10"),".over.chain.gz")),
-#   c("hg38", "rn6", "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/liftOver/mm10ToHg19.over.chain.gz"),
-#   # Add more species combinations here as needed
-# )
 
-# Create a temporary directory to store the chain files
-#temp_dir <- tempdir()
-chain_dir <- "/lulabdata3/baopengfei/shared_reference/ucsc/liftover"
-# Loop through the species combinations and download the chain files
-liftOverVec <- c("panTro5","gorGor5","macFas5","mm10","rn6","susScr11","bosTau8","canFam3","felCat8","monDom5")
+chain_dir <- LIFTOVER_DIR
 
 for (species2 in liftOverVec) {
-  species1 <- "hg38" #spe[1]
-  # species2 <- "rn6" # spe[2]
+  species1 <- "hg38"
+  # species2 <- "rn6"
   message(species2)
-  chain_url <- paste0("https://hgdownload.soe.ucsc.edu/goldenPath/",species1,"/liftOver/",species1,"To",tocapital(species2),".over.chain.gz")
+  chain_url <- paste0("https://hgdownload.soe.ucsc.edu/goldenPath/",species1,"/liftOver/",species1,"To",tocapital(species2),".over.chain")
 
   chain_file <- file.path(chain_dir,basename(chain_url))
-  if(!file.exists(chain_file)){
-    message("skip ",chain_file)
+  if(file.exists(chain_file)){
+    message("already present, skip ",chain_file)
   }else{
     download.file(chain_url, chain_file)
   }
@@ -58,7 +46,7 @@ for (species2 in liftOverVec) {
 
 
 # run liftOver on given bed --------------------
-setwd("/lulabdata3/baopengfei/projects/motif-RBP-EDA/")
+setwd(PROJECT_DIR)
 # Set the source and target genome assemblies
 liftOverBed12ToBed6 <- function(bed12){
   ## 1 to 1 # take wider one each record
@@ -74,7 +62,7 @@ liftOverBed12ToBed6 <- function(bed12){
   #coords[1:3,]
   #dim(coords)
   #summary(coords$V3-coords$V2)
-  coords <- coords[order(coords$V3-coords$V2,decreasing = T),]
+  coords <- coords[order(coords$V3-coords$V2,decreasing = TRUE),]
   coords <- coords[coords$V1 %in% keep.chr,] # only kept common chr
   #table(coords$V1)
   #summary(coords$V3-coords$V2)
@@ -85,20 +73,19 @@ liftOverBed12ToBed6 <- function(bed12){
   rownames(coords) <- coords$name
   return(coords) # bed6 df (0-base)
 }
-getLiftOverGnGr <- function(bed6,species1,species2,chain_dir="/lulabdata3/baopengfei/shared_reference/ucsc/liftover"){
+getLiftOverGnGr <- function(bed6,species1,species2,chain_dir=LIFTOVER_DIR){
   #species1 <- "hg38"
   #species2 <- "rn6"
   # bed6 <- gnBed6
-  # chain_dir <- "/lulabdata3/baopengfei/shared_reference/ucsc/liftover"
-  chain <- rtracklayer::import.chain(file.path(chain_dir,paste0(species1,"To",tocapital(species2),".over.chain"))) # fail for .gz
+  chain <- rtracklayer::import.chain(file.path(chain_dir,paste0(species1,"To",tocapital(species2),".over.chain"))) # import.chain can not read .gz
   colnames(bed6) <- c("seqnames","start","end","name","score","strand")
   rownames(bed6) <- bed6$name
   #coords$start <- bed6$start+1 # 0- to 1-based
   bed6 <- GenomicRanges::makeGRangesFromDataFrame(bed6, starts.in.df.are.0based=TRUE)
-  lifted_coords <- rtracklayerø::liftOver(bed6, chain = chain) # no much param like shell cmd line... (eg. -bedPlus=N)
+  lifted_coords <- rtracklayer::liftOver(bed6, chain = chain) # no much param like shell cmd line... (eg. -bedPlus=N)
   return(lifted_coords) # 1-base GR
 }
-getExtBed6 <- function(bed6,chrSizePath,extLen,fromCenter=T){
+getExtBed6 <- function(bed6,chrSizePath,extLen,fromCenter=TRUE){
   # bed6 <- tmp
   # chrSizePath <- gnChrSize2
   # extLen <- 50
@@ -129,7 +116,7 @@ gnFa1 <- paste0(gnDir,"/",species1,"/",species1,".fa")
 gnBed6 <- liftOverBed12ToBed6(bed12 = sncGnBed12)
 #gnBed6[1:3,]
 gnBed6 <- getExtBed6(gnBed6,chrSizePath = gnChrSize1, extLen = extLen, fromCenter=fromCenter)
-bedtoolsr::bt.getfasta(fi = gnFa1, fo = paste0(outDir,"/",species1,".fa"), nameOnly = T,bed = gnBed6,split = T,s=T) # need pre-index fa
+bedtoolsr::bt.getfasta(fi = gnFa1, fo = paste0(outDir,"/",species1,".fa"), nameOnly = TRUE,bed = gnBed6,split = TRUE,s=TRUE) # need pre-index fa
 
 # prep liftOver bed6 & fa
 liftCoordList <- list()
@@ -137,7 +124,7 @@ for(species2 in liftOverVec){
   # species2 <- "rn6"
   message(species2)
   # Perform the liftover
-  liftCoordList[[paste(species1,species2)]] <- getLiftOverGnGr(bed6 = gnBed6, species1 = species1, species2=species2, chain_dir = "/lulabdata3/baopengfei/shared_reference/ucsc/liftover")
+  liftCoordList[[paste(species1,species2)]] <- getLiftOverGnGr(bed6 = gnBed6, species1 = species1, species2=species2)
 }
 
 for(species2 in liftOverVec){
@@ -147,7 +134,7 @@ for(species2 in liftOverVec){
   gnFa2 <- paste0(gnDir,"/",species2,"/",species2,".fa")
   
   tmp <- as.data.frame(liftCoordList[[paste(species1,species2)]]) # 1-based
-  tmp <- tmp[order(tmp$width,decreasing = T),]
+  tmp <- tmp[order(tmp$width,decreasing = TRUE),]
   tmp <- tmp[!duplicated(tmp$group_name),]
   tmp$score <- 1
   tmp <- tmp[,c("seqnames","start","end","group_name","score","strand")]
@@ -163,7 +150,7 @@ for(species2 in liftOverVec){
   # all(tmp.ext$name==gnBed6$name) # sanity check 
   
   ## get sequence (compare identity)
-  bedtoolsr::bt.getfasta(fi = gnFa2, fo = paste0(outDir,"/",species2,".fa"), nameOnly = T, bed = tmp.ext, split = T, s=T) # need pre-index fa
+  bedtoolsr::bt.getfasta(fi = gnFa2, fo = paste0(outDir,"/",species2,".fa"), nameOnly = TRUE, bed = tmp.ext, split = TRUE, s=TRUE) # need pre-index fa
 }
 #
 
@@ -229,7 +216,7 @@ mySequences <- list()
 for(i in c("hg38",liftOverVec)){
   message(i)
   # tmp1 <- (seqinr::read.fasta(paste0(outDir,"/",i,".fa")))
-  # tmp <- as.data.frame(readDNAStringSet(paste0(outDir,"/",i,".fa"),format = "fasta",use.names=T))
+  # tmp <- as.data.frame(readDNAStringSet(paste0(outDir,"/",i,".fa"),format = "fasta",use.names=TRUE))
   
   tmp = Biostrings::readDNAStringSet(paste0(outDir,"/",i,".fa"))
   name = names(tmp)
@@ -248,7 +235,7 @@ for(i in c("hg38",liftOverVec)){
 #myFirstAlignmentSeq <- unlist(sapply(mySequences,"[",1)) #c(mySequences[[species1]][1],mySequences[[species2]][1])
 myFirstAlignmentSeq <- as.data.frame(do.call(rbind,mySequences))
 length(unique(myFirstAlignmentSeq$name))
-myFirstAlignmentSeq$name <- gsub("\\(\\+\\)|\\(-\\)","",myFirstAlignmentSeq$name,perl = T)
+myFirstAlignmentSeq$name <- gsub("\\(\\+\\)|\\(-\\)","",myFirstAlignmentSeq$name,perl = TRUE)
 length(unique(myFirstAlignmentSeq$name))
 table(duplicated(myFirstAlignmentSeq)) # should not dup
 
@@ -266,14 +253,14 @@ table(is.na(sp.freq))
 sp.freq[is.na(sp.freq)] <- 0
 sp.freq$freq <- rowSums(as.matrix(sp.freq))
 hist(sp.freq$freq) # most exist in 11 sp.
-sp.freq <- sp.freq[order(sp.freq$freq,decreasing = T),]
+sp.freq <- sp.freq[order(sp.freq$freq,decreasing = TRUE),]
 
 ## select candidates
 #opt1: pan
 this.cells <- cellShort  # all, "HNSC","LUAD","LIHC"
 featureLab <- c(rna2,dna)
 {
-    tmp.diff <- read.table( paste0("./output/",dst,"/diff",outSurfix,".diffSig"),header = T,sep = '\t',check.names = F,stringsAsFactors = F)
+    tmp.diff <- read.table( paste0("./output/",dst,"/diff",outSurfix,".diffSig"),header = TRUE,sep = '\t',check.names = FALSE,stringsAsFactors = FALSE)
   dim(tmp.diff)
   tmp <- matrix(as.matrix(tmp.diff[,2:ncol(tmp.diff)]) %in% c("up","down"),nrow = nrow(tmp.diff))
   dim(tmp)
@@ -282,14 +269,14 @@ featureLab <- c(rna2,dna)
   tmp.diff <- tmp.diff[tmp >= 16,]
   select.features <- tmp.diff$feature
   
-  # tmp.diff2 <- data.table::fread( paste0("./output/",dst,"/","diff.summary"),header = T,sep = '\t',check.names = F,stringsAsFactors = F,data.table = F)
+  # tmp.diff2 <- data.table::fread( paste0("./output/",dst,"/","diff.summary"),header = TRUE,sep = '\t',check.names = FALSE,stringsAsFactors = FALSE,data.table = FALSE)
   # #colnames(tmp.diff2)
-  # tmp.diff2 <- tmp.diff2[,grepl(paste0( c("feature",this.cells), collapse = "|"),colnames(tmp.diff2),perl = T)]
+  # tmp.diff2 <- tmp.diff2[,grepl(paste0( c("feature",this.cells), collapse = "|"),colnames(tmp.diff2),perl = TRUE)]
   # table(tmp.diff2$LUAD)
   # tmp.diff2 <- tmp.diff2[tmp.diff2$LUAD %in% c("Both significant","Metastasis only","Tumorigenesis only"),]
   # select.features <- tmp.diff2$feature
   
-  tmp <- unlist(sapply(strsplit(select.features,"|",fixed = T),"[",8))
+  tmp <- unlist(sapply(strsplit(select.features,"|",fixed = TRUE),"[",8))
   table(tmp)
   #old:
   # lncRNA      mRNA     piRNA pri_miRNA      tRNA 
@@ -299,7 +286,7 @@ featureLab <- c(rna2,dna)
   # 1         1         1         1         4         1         6 
   select.features <- select.features[tmp %in% c(featureLab)]
   length(select.features) # recur.diff>-16:  15
-  select.features <-  unlist(sapply(strsplit(select.features,"|",fixed = T),"[",4))
+  select.features <-  unlist(sapply(strsplit(select.features,"|",fixed = TRUE),"[",4))
 
 }
 #peak_17765: chr3:169764610-169764655  45nt (lncRNA TERC)
@@ -352,11 +339,11 @@ for(this.peak in this.peaks){
     msaPrettyPrint(myFirstAlignment, output=c("pdf"), file=outFig, alFile=alignFa, # save .fasta not .fa, otherwise got error.
                    # y=c(164, 213),
                    # paperWidth=11, paperHeight=8.5,
-                   paperWidth=2+max(width(unmasked(myFirstAlignment)))*0.1,paperHeight=0.1+length(myFirstAlignment@unmasked@ranges*0.1),
+                   paperWidth=2+max(width(unmasked(myFirstAlignment)))*0.1,paperHeight=0.1+length(myFirstAlignment@unmasked@ranges)*0.1,
                    showNames="left", shadingMode="functional",
                    shadingModeArg="structure",
                    askForOverwrite=FALSE)
-    file.copy(from = tmpFig, to   = outFig, overwrite = T)
+    file.copy(from = tmpFig, to   = outFig, overwrite = TRUE)
     file.remove(tmpFig)
 
     #opt1: identity score
@@ -364,7 +351,7 @@ for(this.peak in this.peaks){
 
     #opt2: identity score (seem not correct)
     # myFirstAlignment2 <- msaConvert(myFirstAlignment, type="seqinr::alignment")
-    # d <- dist.alignment(myFirstAlignment2, matrix="identity",gap=F) # for protein: c("identity", "similarity"), for DNA/RNA: identity (and seem not correct)
+    # d <- dist.alignment(myFirstAlignment2, matrix="identity",gap=FALSE) # for protein: c("identity", "similarity"), for DNA/RNA: identity (and seem not correct)
     # tmp <- as.matrix(d)  # distance matrix
     
     #hsa-miR-148b
@@ -375,7 +362,6 @@ for(this.peak in this.peaks){
     
     #d <- colnames(d)
     #library(ape)
-    #hemoTree <- ape::nj(d)  # Neighbor-Joining Tree Estimation, d may be an object of class “dist”
     # hemoTree2 <- stats::hclust(d,method = "complete")  # method: "ward.D", "ward.D2", "single", "complete", "average", "mcquitty", "median", "centroid"
     hemoTree2 <- stats::hclust(as.dist(tmp),method = "complete")  # method: "ward.D", "ward.D2", "single", "complete", "average", "mcquitty", "median", "centroid"
     
@@ -401,7 +387,7 @@ for(this.peak in this.peaks){
     width <- 7 #2+max(width((unmasked(myFirstAlignment))))*0.1
     height <- 2+length(unmasked(myFirstAlignment))*0.5
     ggsave(filename = paste0(outDir,"/",this.peak,".tree.pdf"),
-           width = width,height = height,limitsize = F
+           width = width,height = height,limitsize = FALSE
     )
     #
     
@@ -418,11 +404,11 @@ for(this.peak in this.peaks){
     msaPrettyPrint(myFirstAlignment, output=c("pdf"), file=outFig, alFile=alignFa, # save .fasta not .fa, otherwise got error.
                    # y=c(164, 213),
                    # paperWidth=11, paperHeight=8.5,
-                   paperWidth=2+max(width(unmasked(myFirstAlignment)))*0.1,paperHeight=0.1+length(myFirstAlignment@unmasked@ranges*0.1),
+                   paperWidth=2+max(width(unmasked(myFirstAlignment)))*0.1,paperHeight=0.1+length(myFirstAlignment@unmasked@ranges)*0.1,
                    showNames="left", shadingMode="functional",
                    shadingModeArg="structure",
                    askForOverwrite=FALSE)
-    file.copy(from = tmpFig, to   = outFig, overwrite = T)
+    file.copy(from = tmpFig, to   = outFig, overwrite = TRUE)
     file.remove(tmpFig)
     
     # ## op2: ggmsa need R>4.1
@@ -432,17 +418,17 @@ for(this.peak in this.peaks){
     # myFirstAlignment2 <- readDNAMultipleAlignment(alignFa)
     # p <- ggmsa( myFirstAlignment2,
     #       font = "helvetical",
-    #       color = "Chemistry_NT",custom_color = NULL,by_conservation=T,
+    #       color = "Chemistry_NT",custom_color = NULL,by_conservation=TRUE,
     #       # position_highlight = c(40,60),ignore_gaps = FALSE,
     #       # start = 0, end = extLen*2,
-    #       # consensus_views	=T,use_dot	=F,
-    #       char_width = 0.5, seq_name = T, none_bg=F
+    #       # consensus_views	=TRUE,use_dot	=FALSE,
+    #       char_width = 0.5, seq_name = TRUE, none_bg=FALSE
     #       ) + 
     #   geom_seqlogo() +geom_msaBar()
     # width <- 2+max(width(unmasked(myFirstAlignment2)))*0.1
     # height = 0.1+length(myFirstAlignment2@unmasked@ranges*0.1)
     # ggsave(plot = p, filename = paste0(outDir,"/",this.peak,".align.pdf"),
-    #        width = width,height = height,limitsize = F
+    #        width = width,height = height,limitsize = FALSE
     #        )
   }
 }
@@ -487,14 +473,13 @@ getMSAidentityMat <- function(idx,seqs.list,type="dna",method="ClustalW"){
   return(tmp)
 }
 flattern_triMat <- function(m) {
-  ut <- upper.tri(m,diag = T)
+  ut <- upper.tri(m,diag = TRUE)
   data.frame(from = rownames(m)[row(m)[ut]],
              to = rownames(m)[col(m)[ut]],
              value=t(m)[ut]
              # p=t(m)[ut]
              )
 }
-duplicated(c(1:4,2:5))
 table(duplicated(myFirstAlignmentSeq$name)) # rm uniq rows
 dup.name <- unique(myFirstAlignmentSeq$name[duplicated(myFirstAlignmentSeq$name)])
 myFirstAlignmentSeq <- myFirstAlignmentSeq[myFirstAlignmentSeq$name %in% dup.name,]
@@ -506,7 +491,7 @@ myFirstAlignmentSeq <- myFirstAlignmentSeq[myFirstAlignmentSeq$name %in% dup.nam
 this.cells <- cellShort  # all, "HNSC","LUAD","LIHC"
 featureLab <- c(rna2,dna)
 {
-  tmp.diff <- read.table( paste0("./output/",dst,"/diff",outSurfix,".diffSig"),header = T,sep = '\t',check.names = F,stringsAsFactors = F)
+  tmp.diff <- read.table( paste0("./output/",dst,"/diff",outSurfix,".diffSig"),header = TRUE,sep = '\t',check.names = FALSE,stringsAsFactors = FALSE)
   dim(tmp.diff)
   tmp <- matrix(as.matrix(tmp.diff[,2:ncol(tmp.diff)]) %in% c("up","down"),nrow = nrow(tmp.diff))
   dim(tmp)
@@ -515,20 +500,20 @@ featureLab <- c(rna2,dna)
   tmp.diff <- tmp.diff[tmp >= 6,]
   select.features <- tmp.diff$feature
   
-  # tmp.diff2 <- data.table::fread( paste0("./output/",dst,"/","diff.summary"),header = T,sep = '\t',check.names = F,stringsAsFactors = F,data.table = F)
+  # tmp.diff2 <- data.table::fread( paste0("./output/",dst,"/","diff.summary"),header = TRUE,sep = '\t',check.names = FALSE,stringsAsFactors = FALSE,data.table = FALSE)
   # #colnames(tmp.diff2)
-  # tmp.diff2 <- tmp.diff2[,grepl(paste0( c("feature",this.cells), collapse = "|"),colnames(tmp.diff2),perl = T)]
+  # tmp.diff2 <- tmp.diff2[,grepl(paste0( c("feature",this.cells), collapse = "|"),colnames(tmp.diff2),perl = TRUE)]
   # table(tmp.diff2$LUAD)
   # tmp.diff2 <- tmp.diff2[tmp.diff2$LUAD %in% c("Both significant","Metastasis only","Tumorigenesis only"),]
   # select.features <- tmp.diff2$feature
   
-  tmp <- unlist(sapply(strsplit(select.features,"|",fixed = T),"[",8))
+  tmp <- unlist(sapply(strsplit(select.features,"|",fixed = TRUE),"[",8))
   table(tmp)
   select.features <- select.features[tmp %in% c(featureLab)]
-  tmp <- unlist(sapply(strsplit(select.features,"|",fixed = T),"[",8))
+  tmp <- unlist(sapply(strsplit(select.features,"|",fixed = TRUE),"[",8))
   table(tmp)
   length(select.features) # recur.diff>-16:  15
-  select.features <-  unlist(sapply(strsplit(select.features,"|",fixed = T),"[",4))
+  select.features <-  unlist(sapply(strsplit(select.features,"|",fixed = TRUE),"[",4))
   #table(is.na(select.features))
   select.features <- select.features[select.features %in% unique(c(myFirstAlignmentSeq$name,peak.table$name))]
   # lncRNA      mRNA     piRNA pri_miRNA      tRNA 
@@ -549,24 +534,21 @@ featureLab <- c(rna2,dna)
 
 ## by each RNA topN conserved & diff
 # outSurfix <- "_rmMonthOperator"
-# diffSig <- read.table(paste0("./output/",dst,"/cfPeakCNN_smallDomain_diff",outSurfix,".diffSig"),header = T,sep = '\t')(
+# diffSig <- read.table(paste0("./output/",dst,"/cfPeakCNN_smallDomain_diff",outSurfix,".diffSig"),header = TRUE,sep = '\t')(
 #dim(diffSig)
-c(rna,dna)
-outpre="/lulabdata3/baopengfei/projects/WCHSU-FTC"
-#outpre="/data2/lulab1/bpf/projects/WCHSU-FTC"
 for(this.RNA in c("mRNA","lncRNA","tRNA","enhancer","promoter","ktRNA","pri_miRNA","piRNA","repeats")){ # rRNA: error
 # this.RNA <- "pri_miRNA"
   message(this.RNA)
   
-  # peak.table <- data.table::fread(paste0(outpre,"/output/",dst,"/call_peak",dedup,"/cfpeakCNN/b5_d50_p1.summary"),header = T,sep = "\t",stringsAsFactors = F,check.names = F,quote = "",data.table = F)
-  peak.table.tmp <- peak.table[order(peak.table$phastCons100way,decreasing = T),]
+  # peak.table <- data.table::fread(paste0(outpre,"/output/",dst,"/call_peak",dedup,"/cfpeakCNN/b5_d50_p1.summary"),header = TRUE,sep = "\t",stringsAsFactors = FALSE,check.names = FALSE,quote = "",data.table = FALSE)
+  peak.table.tmp <- peak.table[order(peak.table$phastCons100way,decreasing = TRUE),]
   peak.table.tmp <- peak.table.tmp[peak.table.tmp$gn_type==this.RNA,]
   peak.table.tmp <- peak.table.tmp[select.features.list[[this.RNA]],c("name","phastCons100way","MFE_FDR", "coding_probability")] # 1 tx_type
   peak.table.tmp <- peak.table.tmp[1:min(50,nrow(peak.table.tmp)),]
   table(peak.table.tmp$tx_type)
   this.peaks <- unique(myFirstAlignmentSeq$name)
   this.peaks <- this.peaks[this.peaks %in% peak.table.tmp$name]
-  #this.peaks <- this.peaks[sample(1:length(this.peaks),250,replace = F)]
+  #this.peaks <- this.peaks[sample(1:length(this.peaks),250,replace = FALSE)]
   #this.peaks
   seqs.list <- list()
   for(this.peak in this.peaks){
@@ -585,7 +567,7 @@ for(this.RNA in c("mRNA","lncRNA","tRNA","enhancer","promoter","ktRNA","pri_miRN
   #names(tmp)
   tmp2 <- lapply(tmp.list,flattern_triMat)
   tmp2 <- as.data.frame(do.call(rbind,tmp2))
-  tmp2$id <- splitVec(rownames(tmp2),delim = ".",fixed = T,nth = 1)
+  tmp2$id <- splitVec(rownames(tmp2),delim = ".",fixed = TRUE,nth = 1)
   table(tmp2$from==tmp2$to)
   if(max(tmp2$value)>1 & max(tmp2$value)<=100 ){
     tmp2$value <- tmp2$value/100
@@ -616,7 +598,7 @@ for(this.RNA in c("mRNA","lncRNA","tRNA","enhancer","promoter","ktRNA","pri_miRN
     tidyr::pivot_wider(id_cols = id,names_from = to2,values_from = value) %>% 
     as.data.frame()
   cons.tbl <- cons.tbl[,c("id",select.sp,liftOverVec)]
-  data.table::fwrite(x = cons.tbl,file = paste0(outDir,"/",this.RNA,"_seq_identity_mat.txt"),quote = F,row.names = F,col.names = T,sep = '\t')
+  data.table::fwrite(x = cons.tbl,file = paste0(outDir,"/",this.RNA,"_seq_identity_mat.txt"),quote = FALSE,row.names = FALSE,col.names = TRUE,sep = '\t')
   
   rownames(cons.tbl) <- cons.tbl$id
   cons.tbl$id <- NULL
@@ -631,7 +613,7 @@ for(this.RNA in c("mRNA","lncRNA","tRNA","enhancer","promoter","ktRNA","pri_miRN
   names(colorList[[i]]) <- unique( c(select.sp, liftOverVec) )
   colorList[["RNA"]] <- RNA_colors[c(rna2,dna)]
 
-  #peak.table.tmp <- data.table::fread(paste0(outpre,"/output/",dst,"/call_peak",dedup,"/cfpeakCNN/b5_d50_p1.summary"),header = T,sep = "\t",stringsAsFactors = F,check.names = F,quote = "",data.table = F)
+  #peak.table.tmp <- data.table::fread(paste0(outpre,"/output/",dst,"/call_peak",dedup,"/cfpeakCNN/b5_d50_p1.summary"),header = TRUE,sep = "\t",stringsAsFactors = FALSE,check.names = FALSE,quote = "",data.table = FALSE)
   #peak.table.tmp[1:3,1:4]
   rownames(peak.table.tmp) <- peak.table.tmp$name
   peak.table.tmp <- peak.table.tmp[rownames(cons.tbl),]
@@ -647,12 +629,12 @@ for(this.RNA in c("mRNA","lncRNA","tRNA","enhancer","promoter","ktRNA","pri_miRN
                      border_color="white",na_col = "white",
                      scale = "none", # row,none
                      #labels_col = 3, labels_row = 6,
-                     cluster_cols = F,cluster_rows = T,
+                     cluster_cols = FALSE,cluster_rows = TRUE,
                      # gaps_row = sum(annotation_row$trend=="up"), # invalid if cluster row/col
                      #cutree_cols = 2,cutree_rows = 3,
-                     show_colnames=T, show_rownames=F,
+                     show_colnames=TRUE, show_rownames=FALSE,
                      fontsize = 10,
-                     legend =  T, 
+                     legend =  TRUE, 
                      height = 7, width = 6,
                      color = ( colorRampPalette( RColorBrewer::brewer.pal(n = 9, name = "OrRd"))(length(brkList)) ) , # ),  OrRd
                      breaks = brkList,
@@ -664,9 +646,9 @@ for(this.RNA in c("mRNA","lncRNA","tRNA","enhancer","promoter","ktRNA","pri_miRN
   
   
   # all sp. jaccard heatmap (with filter) 
-  #(2024coPARSE: BLAST v2.12.0 bl2seq (E value < 10−4, hit length >50 nt, overall sequence identity >50%))
+  #(2024coPARSE: BLAST v2.12.0 bl2seq (E value < 10^-4, hit length >50 nt, overall sequence identity >50%))
   tmp4 <- tmp2
-  ident.cutOff <- 0.9 #not ext: 0.9 #mean(tmp2$value,na.rm=T)
+  ident.cutOff <- 0.9 #not ext: 0.9 #mean(tmp2$value,na.rm=TRUE)
   tmp4[1:3,]
   tmp4$value[tmp4$value>=ident.cutOff] <- 1
   tmp4$value[tmp4$value<ident.cutOff] <- 0
@@ -681,7 +663,7 @@ for(this.RNA in c("mRNA","lncRNA","tRNA","enhancer","promoter","ktRNA","pri_miRN
     tidyr::pivot_wider(names_from = to,values_from = frac) %>%
     as.data.frame()
   #summary(cons.tbl2$frac)
-  data.table::fwrite(x = cons.tbl2,file = paste0(outDir,"/",this.RNA,"_seq_jaccard_mat.txt"),quote = F,row.names = T,col.names = T,sep = '\t')
+  data.table::fwrite(x = cons.tbl2,file = paste0(outDir,"/",this.RNA,"_seq_jaccard_mat.txt"),quote = FALSE,row.names = TRUE,col.names = TRUE,sep = '\t')
   
   
   #get full-matrix from upper half tri mat
@@ -711,12 +693,12 @@ for(this.RNA in c("mRNA","lncRNA","tRNA","enhancer","promoter","ktRNA","pri_miRN
                      border_color="white",na_col = "white",
                      scale = "none", # row,none
                      #labels_col = 3, labels_row = 6,
-                     cluster_cols = F,cluster_rows = F,
+                     cluster_cols = FALSE,cluster_rows = FALSE,
                      # gaps_row = sum(annotation_row$trend=="up"), # invalid if cluster row/col
                      #cutree_cols = 2,cutree_rows = 3,
-                     show_colnames=T, show_rownames=T,
+                     show_colnames=TRUE, show_rownames=TRUE,
                      fontsize = 10,
-                     legend =  T, 
+                     legend =  TRUE, 
                      height = 2.6, width = 3,
                      color =  ( colorRampPalette( RColorBrewer::brewer.pal(n = 9, name = "OrRd"))(length(brkList)) ) , # ),  OrRd, rev(RdYlBu)
                      breaks = brkList,
@@ -724,32 +706,50 @@ for(this.RNA in c("mRNA","lncRNA","tRNA","enhancer","promoter","ktRNA","pri_miRN
                      filename = paste0(outDir,"/",this.RNA,"_seq_jac_mat.png")
   )
 }
-# peak.table <- peak.table[!grepl(",",peak.table$gn_blockSizes),]
-# peak.table <- peak.table[,7:12]
-# colnames(peak.table) <- c("seqnames","start","end","name","score","strand")
-# 
-# signal.gr <- rtracklayer::import.bw(con=as.character("/lulabdata3/baopengfei/shared_reference/ucsc/conservation/hg38.phastCons100way.bw"),which=GenomicRanges::makeGRangesFromDataFrame(peak.table)) # import(.bed) got error if input bed not proper formated
 
 #
 
 
 
-# optinal: plot conservation deltaPhastCons (peak-flank) score --------------------
-#should be reasonable if merged into snc_cluster (<20? bp)
+# Fig S15: plot conservation deltaPhastCons (peak-flank) score --------------------
 
-dst <- "TCGA_small16"
-dedup <- "_all"
-pre <- "/lulabdata3/baopengfei/projects/WCHSU-FTC"
-#peak.table <- data.table::fread(paste0(pre,"/output/",dst,"/call_peak",dedup,"/cfpeakCNN/b5_d50_p1.summary"),sep='\t',header = T,data.table = F,check.names = F,stringsAsFactors = F)
-#rownames(peak.table) <- peak.table$name
+## load coPARSE lncRNA
+# dim(coparse_lncrna)
+# table(peak.table$tx_ENST %in% coparse_lncrna$human.transcript)
+# p_names <- (unique(peak.table$name[peak.table$tx_ENST %in% coparse_lncrna$human.transcript]))
+# FALSE  TRUE
+# 53847   507
+#not signif for coPARSE
+
+# # load consensus diff (290 total, not enough)
+# p_names <- (unique(consensus.diff$name))
+# length(p_names)
+
+
+# load DES freq
+dfsig <- read.table(paste0("./output/",dst,"/diff",outSurfix,".diffSig"),header = TRUE,row.names = 1)
+dfsig2 <- data.frame(row.names = rownames(dfsig), "down"=rowSums(dfsig=='down'), "up"=rowSums(dfsig=='up'))
+dfsig2$sum <- dfsig2$up + dfsig2$down
+# table(dfsig2$sum) # no 0
+freq_cutoff <- 1
+dfsig2 <- as.data.frame( cbind(splitPeakFeatureID(rownames(dfsig2)), dfsig2) )
+p_names <- dfsig2$PeakID[dfsig2$sum >= freq_cutoff]
+length(p_names) # 34523
+# table(dfsig2$up, dfsig2$down)
+#206 lnc left
+
+
+
 peak.table$deltaCons <- peak.table$phastCons100way-peak.table$phastCons100way_flank
-summary(peak.table$deltaCons,breaks = 100)
+# summary(peak.table$deltaCons,breaks = 100)
 
 table((peak.table$phastCons100way==0) & (peak.table$phastCons100way_flank==0))
-peak.table.tmp <- peak.table[(peak.table$phastCons100way!=0) & !is.na(peak.table$phastCons100way),]
-peak.table.tmp <- peak.table.tmp[order(peak.table.tmp$deltaCons,decreasing = T),]
+peak.table.tmp <- peak.table[(peak.table$phastCons100way!=0) & (!is.na(peak.table$phastCons100way)) 
+                             & (peak.table$phastCons100way_flank!=0) & (!is.na(peak.table$phastCons100way_flank)) 
+                             & (peak.table$name %in% p_names),]
+peak.table.tmp <- peak.table.tmp[order(peak.table.tmp$deltaCons,decreasing = TRUE),]
 peak.table.tmp$rank <- 1:nrow(peak.table.tmp)
-peak.table.tmp <- peak.table.tmp[order(peak.table.tmp$deltaCons,decreasing = T),c("name","rank","deltaCons","gn_type","tx")]
+peak.table.tmp <- peak.table.tmp[order(peak.table.tmp$deltaCons,decreasing = TRUE),c("name","rank","deltaCons","gn_type","tx")]
 peak.table.tmp$gn_type <- factor(peak.table.tmp$gn_type, levels = c(rna2,dna))
 table(peak.table.tmp$gn_type)
 p1 <- ggplot(peak.table.tmp,aes(x=gn_type,y=deltaCons,fill=gn_type))+  # ,label=label
@@ -766,12 +766,6 @@ p1 <- ggplot(peak.table.tmp,aes(x=gn_type,y=deltaCons,fill=gn_type))+  # ,label=
   #ylab("ssGSEA score")+
   ylab("deltaCons")+
   xlab("") +
-  # ggpubr::stat_compare_means(
-  #   comparisons = list( c("HC","LDA"),c("LDA","HDA"),c("HC","HDA") ),
-  #   label.x.npc = 0.5,hide.ns=F,size =8, vjust = 0.5, step.increase = 0.04,#paired = TRUE,
-  #   aes(label = p.signif), # p.signif, group = Group,
-  #   symnum.args=list(cutpoints = c(0, 0.001, 0.01, 0.05, 0.1,1),symbols = c( "****","***", "**", "*", "ns")),
-  #   method = "wilcox.test") +
   theme_minimal(base_size=12) +
   theme(#axis.ticks.x=element_blank(),
     aspect.ratio = 1,
@@ -787,22 +781,40 @@ p1 <- ggplot(peak.table.tmp,aes(x=gn_type,y=deltaCons,fill=gn_type))+  # ,label=
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank())
   # facet_wrap(facets = "tx_type", scales = "free_y",ncol = 4 )
+p1
 ggsave(plot = p1, "./figure/rank_delta_gn.pdf",height = 8, width = 10)
 
 
+
 #peak.table.tmp2[1:3,]
-colnames(peak.table)
-table((peak.table$phastCons100way==0) & (peak.table$phastCons100way_flank==0))
-table(is.na(peak.table$phastCons100way))
-peak.table.tmp2 <- peak.table[(peak.table$phastCons100way!=0) & !is.na(peak.table$phastCons100way),]
+#table((peak.table$phastCons100way==0) & (peak.table$phastCons100way_flank==0))
+#table(is.na(peak.table$phastCons100way))
+# peak.table.tmp2 <- peak.table[(peak.table$phastCons100way!=0) & !is.na(peak.table$phastCons100way) ,]
+# peak.table.tmp2 <- peak.table[(!is.na(peak.table$phastCons100way)) & (!is.na(peak.table$phastCons100way_flank)),]
+peak.table.tmp2 <- peak.table[(peak.table$phastCons100way!=0) & (!is.na(peak.table$phastCons100way)) 
+                              & (peak.table$phastCons100way_flank!=0) & (!is.na(peak.table$phastCons100way_flank))
+                              & (peak.table$name %in% p_names),]
 peak.table.tmp2 <- dplyr::as_tibble(peak.table.tmp2) %>% 
-  dplyr::select(name,phastCons100way,phastCons100way_flank,gn_type) %>% 
-  tidyr::pivot_longer(cols = c("phastCons100way","phastCons100way_flank"),names_to = "region",values_to = "phastCons") %>% 
+  dplyr::select(name, phastCons100way, phastCons100way_flank, gn_type) %>% 
+  tidyr::pivot_longer(cols = c("phastCons100way","phastCons100way_flank"),
+                      names_to = "region", values_to = "phastCons") %>% 
+  dplyr::group_by(name) %>%
+  dplyr::filter(n() == 2, all(is.finite(phastCons))) %>%
+  dplyr::ungroup() %>%
+  dplyr::arrange(name, region) %>%      # dplyr:: prefix needed, plyr masks arrange
   as.data.frame()
+
 # peak.table.tmp2$tx_type <- factor(peak.table.tmp2$tx_type, levels = c(dna,rna))
 peak.table.tmp2$gn_type <- factor(peak.table.tmp2$gn_type, levels = c(rna2,dna))
+peak.table.tmp2 <- peak.table.tmp2[order(peak.table.tmp2$name, peak.table.tmp2$region), ]
 table(peak.table.tmp2$gn_type)
+table(duplicated(peak.table.tmp2$name))
+# str(dfsig2)
+# peak.table.tmp2[1:4,]
 library(ggpubr)
+# bad <- !is.finite(peak.table.tmp2$phastCons)
+# sum(bad)                      # 6
+# peak.table.tmp2[bad, ]
 p2 <- ggplot(peak.table.tmp2,aes(x=gn_type,y=phastCons,fill=region))+  # ,label=label
   geom_boxplot(color="black",alpha=0.8,outlier.size = 0,outlier.colour = "white") +
   # geom_point(
@@ -819,8 +831,8 @@ p2 <- ggplot(peak.table.tmp2,aes(x=gn_type,y=phastCons,fill=region))+  # ,label=
   xlab("") +
   ggpubr::stat_compare_means(
     # ref.group = "phastCons100way",
-    # comparisons = list( c("HC","LDA"),c("LDA","HDA"),c("HC","HDA") ),
-    label.x.npc = 0.5,hide.ns=F,size =8, vjust = 0.5, step.increase = 0.04,#paired = TRUE,
+    label.x.npc = 0.5,hide.ns=TRUE,size =8, vjust = 0.5, step.increase = 0.04,
+    paired = TRUE, # id = "name",  
     # aes(label = "p.signif"), # p.signif, group = Group,
     label="p.signif",
     symnum.args=list(cutpoints = c(0, 0.0001,0.001, 0.01, 0.05,1),symbols = c( "****","***", "**", "*", "ns")),
@@ -842,8 +854,10 @@ p2 <- ggplot(peak.table.tmp2,aes(x=gn_type,y=phastCons,fill=region))+  # ,label=
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank())
   # facet_wrap(facets = "tx_type", scales = "free_y",ncol = 4 )
+p2
 ggsave(plot=p2, "./figure/phastCons_flank_box_gn.pdf",height = 8, width = 12)
 #
+
 
 
 
@@ -873,7 +887,7 @@ p1 <- ggplot(peak.table.tmp, aes(x = gn_type, y = deltaCons, fill = gn_type)) +
   my_theme +
   theme(
     legend.position = "right",
-    plot.margin  = margin(0, 5.5, 0, 5.5)   # 底部 margin 设 0
+    plot.margin  = margin(0, 5.5, 0, 5.5)
   )
 
 # 4) p2
@@ -885,7 +899,8 @@ p2 <- ggplot(peak.table.tmp2, aes(x = gn_type, y = phastCons, fill = region)) +
   geom_hline(yintercept = 0.5, color = "grey", linetype = "dashed", linewidth = 1) +
   labs(y = "PhastCons", x = "") +
   ggpubr::stat_compare_means(
-    label.x.npc = 0.5, hide.ns = FALSE, size = 8, vjust = 0.5, step.increase = 0.04,
+    paired = TRUE, # id = "name",  
+    label.x.npc = 0.5, hide.ns = TRUE, size = 8, vjust = 0.5, step.increase = 0.04,
     label = "p.signif",
     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1),
                        symbols = c("****", "***", "**", "*", "ns")),
@@ -902,7 +917,7 @@ p2 <- ggplot(peak.table.tmp2, aes(x = gn_type, y = phastCons, fill = region)) +
     plot.margin  = margin(5.5, 5.5, 0, 5.5)   #
   )
 
-# 下面的 p1：保留 x 轴
+# p1 below keeps its x axis
 p12 <- plot_grid(
   p2, p1,
   ncol        = 1,
@@ -916,49 +931,40 @@ ggsave(plot=p12, "./figure/phastCons_flank_box_gn_merge.png",height = 7, width =
 
 
 
-# cor: DEG Freq. vs PhastCons ----------------
-#consensus.diff <- data.table::fread(paste0("/lulabdata3/baopengfei/smb/",dst,"_candidate_diff_summary.txt.tmp"), sep = "\t",header = T, stringsAsFactors = F, check.names = F, data.table = F)
-consensus.diff <- data.table::fread(paste0("/lulabdata3/baopengfei/smb/",dst,"_candidate_diff_summary.txt.tmp2"), sep = "\t",header = T, stringsAsFactors = F, check.names = F, data.table = F)
+# Fig 4 cor: DEG Freq. vs PhastCons ----------------
+consensus.diff <- data.table::fread(paste0(SMB_DIR,"/",dst,"_candidate_diff_summary.txt.tmp"), sep = "\t",header = TRUE, stringsAsFactors = FALSE, check.names = FALSE, data.table = FALSE)
 #rownames(peak.table)
 #dim(consensus.diff)
 #consensus.diff$phastCons100way
-tmp1 <- peak.table[consensus.diff$name,c("name","phastCons100way","phastCons100way_flank")]
+# tmp1 <- peak.table[consensus.diff$name,c("name","gn_type","phastCons100way","phastCons100way_flank", "unionSigup", "unionSigdown")]
+tmp1 <- consensus.diff[,c("name","gn_type","phastCons100way","phastCons100way_flank", "unionSigup", "unionSigdown")]
 #tmp1 <- tmp1
-cor.test(tmp1$phastCons100way,consensus.diff$unionSigup)
-cor.test(tmp1$phastCons100way,consensus.diff$unionSigdown)
-df.tmp <- data.frame(name=tmp1$name,phastCons=tmp1$phastCons100way,DES_Freq=consensus.diff$unionSigup)
+# tmp1 <- tmp1[(tmp1$phastCons100way!=0) & (!is.na(tmp1$phastCons100way)) & (tmp1$phastCons100way_flank!=0) & (!is.na(tmp1$phastCons100way_flank)),]
+
+cor.test(tmp1$phastCons100way,tmp1$unionSigup, method = "kendall")
+cor.test(tmp1$phastCons100way,tmp1$unionSigdown, method = "kendall")
+
+df.tmp <- data.frame(name=tmp1$name,phastCons=tmp1$phastCons100way,DES_Freq=tmp1$unionSigup,Precursor=tmp1$gn_type)
 df.tmp$trend <- "up"
-df.tmp1 <- data.frame(name=tmp1$name,phastCons=tmp1$phastCons100way,DES_Freq=consensus.diff$unionSigdown)
+df.tmp1 <- data.frame(name=tmp1$name,phastCons=tmp1$phastCons100way,DES_Freq=tmp1$unionSigdown,Precursor=tmp1$gn_type)
 df.tmp1$trend <- "down"
 df.tmp <- as.data.frame(rbind(df.tmp,df.tmp1))
 table(duplicated(df.tmp$name))
-ggplot(df.tmp, aes(x=DES_Freq, y=phastCons) ) + # type2, type3
-  geom_point() + # fill="grey",color="grey",  minus.log10.padj
-  # scale_color_continuous(name="-log10.P",type = "viridis") + # YlOrRd, viridis RColorBrewer::brewer.pal(n=8,name="Reds")
-  # scale_size_continuous(name = sizeLab) +
-  ylab("") + 
-  xlab("") + 
-  theme_minimal() +  # base_size=12 void
-  theme(#axis.ticks.x=element_blank(),
-    strip.text = element_text(size=20),
-    axis.title.x = element_text(size=20),
-    axis.title.y = element_text(size=20),
-    axis.text.x = element_text(size = 28, hjust = 1,vjust = 1, angle=45), #
-    axis.text.y = element_text(size = 20, hjust = 1),
-    plot.title = element_text(size=20),
-    legend.text = element_text(size= 16),
-    legend.title= element_text(size= 16)) + 
-  facet_grid(trend~.)
+table((df.tmp$Precursor))
+df.tmp$Precursor <- factor(df.tmp$Precursor,levels = c(rna2,dna))
+df.tmp$trend <- factor(df.tmp$trend,levels = c("up","down"))
 p <- 
   ggplot(data=df.tmp,aes(x=DES_Freq, y=phastCons))+
   # geom_point(alpha=0.5, color="white",fill="grey30", size=2, shape=21) + # fill="grey",color="grey",
-  geom_point( aes(fill=phastCons,alpha=DES_Freq, size=2) ,color="white",shape=21) + # fill="grey",color="grey",
+  geom_point( aes(fill=Precursor,alpha=DES_Freq, size=2) ,color="white",shape=21) + # fill="grey",color="grey",
   # geom_bin2d(bins = 200) +
   # geom_hex(bins = 100) +
   # xlim(c(-10,10)) +
   # xlim(c(-6,6)) +
-  scale_fill_viridis_c(direction=1,na.value = "grey30" )+ # values=c(0.1,0.4,0.7,1) # option = "E"
-  scale_color_nejm_adaptive() +
+  # scale_fill_viridis_c(direction=1,na.value = "grey30" )+ # values=c(0.1,0.4,0.7,1) # option = "E"
+  # scale_color_nejm_adaptive() +
+  scale_color_manual(values = RNA_colors) + 
+  scale_fill_manual(values = RNA_colors) + 
   geom_smooth(method='lm', formula= y~x,color="grey30") +
   ggpubr::stat_cor(label.x = 1,size=8,label.y = 0.8,method = "spearman")+ #this means at 35th unit in the y axis, the r squared and p value will be shown
   # ggpubr::stat_regline_equation(label.x = 1,size=8,label.y = 0.8) +
@@ -982,6 +988,7 @@ p <-
     legend.text = element_text(size= 16),
     legend.title= element_text(size= 16)) +
   facet_grid(.~trend)
-ggsave(plot = p, filename = paste0("./figure/","phastCon_DES_cor",".png"),device = "png", width = 12,height = 10, dpi = 200 ) # , limitsize = FALSE
+p
+ggsave(plot = p, filename = paste0("./figure/","phastCon_DES_cor2",".png"),device = "png", width = 12,height = 10, dpi = 200 ) # , limitsize = FALSE
 #
 #

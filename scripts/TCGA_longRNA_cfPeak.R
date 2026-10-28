@@ -1,7 +1,12 @@
 # TCGA long 16
-setwd("/lulabdata3/baopengfei/projects/motif-RBP-EDA")
+# Paths and global options come from scripts/config.R; sample.table0, cmp.df
+# and cellShort come from scripts/TCGA_sncRNA_util.R. Run this script from the
+# repository root.
+source("scripts/config.R")
+source("scripts/TCGA_sncRNA_util.R")
+setwd(PROJECT_DIR)
+
 dst <- "TCGA_long16"
-diffpre <- "/lulabdata3/baopengfei/projects/motif-RBP-EDA"
 
 # library(tidyverse)
 library(ggplot2)
@@ -13,7 +18,7 @@ outSurfix="_rmPurity"
 
 
 # prep/update var -------
-mRNA_table <- read.table("output/TCGA_long16/mRNA_meta_intersect_rmDupName.txt",header = T,sep = '\t')
+mRNA_table <- read.table("output/TCGA_long16/mRNA_meta_intersect_rmDupName.txt",header = TRUE,sep = '\t')
 rownames(mRNA_table) <- mRNA_table$symbol
 mRNA_table$RNA <- mRNA_table$group
 table(mRNA_table$RNA)
@@ -21,7 +26,7 @@ table(mRNA_table$RNA)
 # 16766      1697       161 
 RNA_colors <- c(RNA_colors,"-"="grey90","RBP"="orange","RBP-RNase"="firebrick")
 
-logcpm0 <- data.table::fread("output/TCGA_long16/log2TPM_mRNA.txt",sep = '\t',check.names = F,header = T, data.table = F)
+logcpm0 <- data.table::fread("output/TCGA_long16/log2TPM_mRNA.txt",sep = '\t',check.names = FALSE,header = TRUE, data.table = FALSE)
 rownames(logcpm0) <- logcpm0$feature
 logcpm0$feature <- NULL
 #
@@ -33,7 +38,7 @@ logcpm0$feature <- NULL
 sample.table <- sample.table0 #[(sample.table0$Threatment=="-") & (sample.table0$treatmentnaive %in% c("-","0")),] # 376
 logcpm <- logcpm0[,sample.table$sample]
 dim(logcpm)
-all(sample.table$sample==colnames(logcpm)) # T !
+all(sample.table$sample==colnames(logcpm))
 #table(sample.table0$group)
 table(sample.table0$cell,sample.table0$group1)
 
@@ -63,11 +68,11 @@ for(cellID in cellShort){
 
 ## run diff
 outDir = paste0(diffpre,"/output/",dst,"/")
-dir.create(outDir,recursive = T,showWarnings = F)
+dir.create(outDir,recursive = TRUE,showWarnings = FALSE)
 #cmp.df
 outSurfix="_rmPurity" # _rmPurity
 #cellShort <- cellShort[cellShort!="EV"]
-gL <- data.table::fread("/lulabdata3/baopengfei/projects/tcga/ref/TCGAbiolinks_geneInfoHT.txt")
+gL <- data.table::fread(file.path(TCGA_DIR, "ref/TCGAbiolinks_geneInfoHT.txt"))
 gL <- gL[!duplicated(gL$ENSG),]
 #rownames(gL) <- gL$ENSG
 tmp <- as.numeric(gL$geneLength)
@@ -91,15 +96,15 @@ for(cellID in cellShort){
     
     sample.table <- sample.table0[sample.table0$cell==cellID,]
     
-    longMat <- data.table::fread(file =  paste0("/lulabdata3/baopengfei/projects/tcga/data/","",cellID,"_long/","count.txt"), sep = "\t", header = T, check.names = F, stringsAsFactors = F,data.table = F)
+    longMat <- data.table::fread(file = file.path(TCGA_DIR, "data", paste0(cellID,"_long"), "count.txt"), sep = "\t", header = TRUE, check.names = FALSE, stringsAsFactors = FALSE,data.table = FALSE)
     rownames(longMat) <- longMat$feature
     longMat$feature <- NULL
     longMat <- longMat[,!duplicated(colnames(longMat))] # duplicated col names !
     colnames(longMat) <- substr(colnames(longMat),1,16)
     longMat <- longMat[,colnames(longMat) %in% sample.table$tissue_id]
     longMat <- longMat[,sample.table$tissue_id]
-    longMat <- longMat[!duplicated(unlist(sapply(strsplit(rownames(longMat),".",fixed = T),"[",1))),]
-    rownames(longMat) <- unlist(sapply(strsplit(rownames(longMat),".",fixed = T),"[",1))
+    longMat <- longMat[!duplicated(unlist(sapply(strsplit(rownames(longMat),".",fixed = TRUE),"[",1))),]
+    rownames(longMat) <- unlist(sapply(strsplit(rownames(longMat),".",fixed = TRUE),"[",1))
     longMat <- longMat[(rowSums(longMat)>0),]
     longMat <- na.omit(longMat)
     count <- longMat
@@ -130,8 +135,8 @@ for(cellID in cellShort){
                        method = method, norm_method = norm_method, filterType = "NULL", featureType = "gene", 
                        getCountGt1SmpFrac = TRUE, getPercExpByGrp = TRUE, useExternalLibSize = useExternalLibSize,geneLength = gL[rownames(mat)])
 
-    # write.table(res[["diffTable"]],paste0(outDir,"/diff_",cellID,"_",pos.grp,"vs",neg.grp,"",outSurfix,".diff"),quote = F,sep = "\t",row.names = T,col.names = T) # 
-    data.table::fwrite(cbind(feature=rownames(res[["diffTable"]]),res[["diffTable"]]),paste0(outDir,"/diff_",cellID,"_",pos.grp,"vs",neg.grp,"",outSurfix,".diff"),quote = F,sep = "\t",row.names = F,col.names = T) # 
+    # write.table(res[["diffTable"]],paste0(outDir,"/diff_",cellID,"_",pos.grp,"vs",neg.grp,"",outSurfix,".diff"),quote = FALSE,sep = "\t",row.names = TRUE,col.names = TRUE) # 
+    data.table::fwrite(cbind(feature=rownames(res[["diffTable"]]),res[["diffTable"]]),paste0(outDir,"/diff_",cellID,"_",pos.grp,"vs",neg.grp,"",outSurfix,".diff"),quote = FALSE,sep = "\t",row.names = FALSE,col.names = TRUE) # 
     
   }
 }
@@ -151,7 +156,7 @@ for(cellID in cellShort){
 
 # diff TCGA_long16 summary (top/sig heatmap, volcano scatter) --------------
 outDir = paste0(diffpre,"/output/",dst,"/")
-dir.create(outDir,recursive = T,showWarnings = F)
+dir.create(outDir,recursive = TRUE,showWarnings = FALSE)
 pval.cutoff1 <- 0.01
 padj.cutoff1 <- 0.01
 pval.cutoff2 <- 0.01 
@@ -177,7 +182,7 @@ for(cellID in cellShort){
       message("skip")
       next
     }
-    tmp <- data.table::fread(x, header = T, sep="\t",check.names = F,stringsAsFactors = F, data.table = F) # _extLibSize
+    tmp <- data.table::fread(x, header = TRUE, sep="\t",check.names = FALSE,stringsAsFactors = FALSE, data.table = FALSE) # _extLibSize
     tmp <- tmp[tmp$feature %in% mRNA_table$ENSG,]
     rownames(tmp) <- mRNA_table$symbol[match(tmp$feature,mRNA_table$ENSG)]
     tmp$feature <- NULL
@@ -209,7 +214,7 @@ tmp <- diff.sum.df[,grepl("trend",colnames(diff.sum.df))]
 hist(rowSums(tmp!="insig"))
 tmp <- tmp[rowSums(tmp!="insig")>=1,]
 #tmp
-data.table::fwrite(cbind(feature=rownames(tmp),tmp), paste0("./output/",dst,"/diff",outSurfix,".diffSig"),quote = F,row.names = F,col.names = T,sep = '\t')
+data.table::fwrite(cbind(feature=rownames(tmp),tmp), paste0("./output/",dst,"/diff",outSurfix,".diffSig"),quote = FALSE,row.names = FALSE,col.names = TRUE,sep = '\t')
 #only keep sig diff
 
 tmp.l <- list()
@@ -223,8 +228,8 @@ for(i in 1:length(diff.sum.list)){
 tmp.df <- as.data.frame(do.call(rbind,tmp.l))
 table(tmp.df$Var1)
 tmp.df <- tmp.df[tmp.df$Var1 %in% c("up","down"),]
-tmp.df$cell <- unlist(sapply(strsplit(tmp.df$name,"|",fixed=T),"[",1))
-tmp.df$diff <- unlist(sapply(strsplit(tmp.df$name,"|",fixed=T),"[",2))
+tmp.df$cell <- unlist(sapply(strsplit(tmp.df$name,"|",fixed=TRUE),"[",1))
+tmp.df$diff <- unlist(sapply(strsplit(tmp.df$name,"|",fixed=TRUE),"[",2))
 table(tmp.df$diff)
 tmp.df$diff2 <- tmp.df$diff
 tmp.df$diff2 <- gsub("Primary","tumorigenesis",tmp.df$diff2)
@@ -239,7 +244,7 @@ tmp.df <- tmp.df[,c(
   "tumorigenesis_up","tumorigenesis_down", "metastasis_up","metastasis_down"
 )]
 tmp.df <- tmp.df[cellShort[cellShort %in% rownames(tmp.df)],]
-data.table::fwrite(cbind(cell=rownames(tmp.df),tmp.df), paste0("./output/",dst,"/diff",outSurfix,".diffSig.summary"),quote = F,row.names = F,col.names = T,sep = '\t')
+data.table::fwrite(cbind(cell=rownames(tmp.df),tmp.df), paste0("./output/",dst,"/diff",outSurfix,".diffSig.summary"),quote = FALSE,row.names = FALSE,col.names = TRUE,sep = '\t')
 
 
 
@@ -271,14 +276,14 @@ for(cellID in cellShort){
       message(x,"not exist, skip next")
       next
     }
-    tmp <- data.table::fread(x, header = T, sep="\t",check.names = F,stringsAsFactors = F,data.table = F)
+    tmp <- data.table::fread(x, header = TRUE, sep="\t",check.names = FALSE,stringsAsFactors = FALSE,data.table = FALSE)
     tmp <- tmp[tmp$feature %in% mRNA_table$ENSG,]
     rownames(tmp) <- mRNA_table$symbol[match(tmp$feature,mRNA_table$ENSG)]
     tmp <- tmp[mRNA_table$symbol,]
     tmp <- na.omit(tmp)
     tmp$feature <- NULL
     diff[[disease.label]] <- tmp
-    tmp <- tmp[order(as.numeric(tmp$pvalue),decreasing = F),]
+    tmp <- tmp[order(as.numeric(tmp$pvalue),decreasing = FALSE),]
     
     # op1: fixed cutoff
     #tmp.sig <- tmp[tmp$pvalue<0.00001,]
@@ -298,7 +303,7 @@ for(cellID in cellShort){
   }
   
 }
-all(rownames(diff[[disease.label]])==rownames(logcpm0)) # T !!!
+all(rownames(diff[[disease.label]])==rownames(logcpm0))
 #
 
 
@@ -324,7 +329,7 @@ for(cellID in "LIHC"){
     table(sample.table$sample %in% colnames(logcpm))
     
     annotation_col <- sample.table[colnames(logcpm),]
-    annotation_col <- annotation_col[,c("cell","group","tumor_stage","gender","race"),drop=F] # "group1","group2","age","sex","ExprDate","Month","Operator","MonthOperator"
+    annotation_col <- annotation_col[,c("cell","group","tumor_stage","gender","race"),drop=FALSE] # "group1","group2","age","sex","ExprDate","Month","Operator","MonthOperator"
     
     annotation_row <- data.frame( RNA = mRNA_table$RNA[match(rownames(logcpm),mRNA_table$symbol)], row.names = rownames(logcpm))
     annotation_row$trend <- ""
@@ -360,14 +365,14 @@ for(cellID in "LIHC"){
                        # "RNA"=c('-'='white','RNase'='grey30'))
                        ) # ,"salmon",seagreen,orange,chocolate
 
-    annotation_row <- annotation_row[order(annotation_row$trend,annotation_row$RNA,decreasing = F),]
+    annotation_row <- annotation_row[order(annotation_row$trend,annotation_row$RNA,decreasing = FALSE),]
     annotation_row$RNA <- NULL
     logcpm <- logcpm[rownames(annotation_row),] #positive_samples
     colnames(annotation_row) <- c("Regulation","Precursor")
     colnames(annotation_col)[1:5] <- c("Tissue","Group","Stage","Gender","Race")
     
     
-    dir.create(paste0("./output/",dst,"/heatmap/"),recursive = T,showWarnings = F)
+    dir.create(paste0("./output/",dst,"/heatmap/"),recursive = TRUE,showWarnings = FALSE)
     pheatmap::pheatmap(mat = logcpm, 
                        annotation_col = annotation_col, #data frame that specifies the annotations shown on left side of the heatmap.
                        annotation_row = annotation_row,
@@ -376,10 +381,10 @@ for(cellID in "LIHC"){
                        # labels_col = coldata$age
                        scale = "row", # row,none
                        #labels_col = 3, labels_row = 6,
-                       cluster_cols = F,cluster_rows = F,
+                       cluster_cols = FALSE,cluster_rows = FALSE,
                        # gaps_row = sum(annotation_row$trend=="up"), # invalid if cluster row/col
                        #cutree_cols = 2,cutree_rows = 3,
-                       show_colnames=F, show_rownames=F,
+                       show_colnames=FALSE, show_rownames=FALSE,
                        fontsize = 12,
                        height = 14, width = 14,
                        color = rev( colorRampPalette( RColorBrewer::brewer.pal(n = 10, name = "RdBu"))(100) ),  # steelblue/dodgerblue4-firebrick2, viridis::viridis_pal()(100), #
@@ -420,7 +425,7 @@ for(cellID in "LIHC"){
       message(x,"not exist")
       next
     }
-    tmp <- read.table(x,sep = "\t",header = T,check.names = F,stringsAsFactors = F)
+    tmp <- read.table(x,sep = "\t",header = TRUE,check.names = FALSE,stringsAsFactors = FALSE)
     # rownames(tmp) <- tmp$feature
     tmp <- tmp[tmp$feature %in% mRNA_table$ENSG,]
     rownames(tmp) <- mRNA_table$symbol[match(tmp$feature,mRNA_table$ENSG)]
@@ -435,10 +440,10 @@ for(cellID in "LIHC"){
     
     tmp$alpha <- maxmin.normalize.vec(tmp$minus.log10.pvalue)
     
-    tmp$RNA <- mRNA_table$RNA[match(rownames(tmp),mRNA_table$symbol)] #unlist(sapply(strsplit(tmp$feature,"|",fixed=T),"[",8))
+    tmp$RNA <- mRNA_table$RNA[match(rownames(tmp),mRNA_table$symbol)] #unlist(sapply(strsplit(tmp$feature,"|",fixed=TRUE),"[",8))
     tmp$RNA <- factor(tmp$RNA,levels=c("-","RBP","RBP-RNase"))
 
-    tmp <- tmp[order(tmp$RNA,decreasing = F),]
+    tmp <- tmp[order(tmp$RNA,decreasing = FALSE),]
     ## color by RNA
     diff.plot[[disease.label]] <- ggplot(tmp, aes(x=log10.baseMean,y=log2FoldChange, fill=RNA)) +  # minus.log10.pvalue
       geom_point(aes(alpha=0.8),shape=21,size=3,color="white") + 
@@ -469,32 +474,32 @@ for(cellID in cellShort){ # cellShort
   # cellID <- "LIHC"
   message(cellID)
 
-  disease.label <- "Yes" # "HDA","Inactive"
-  normal.label <- "No" # "Inactive","HC"
-  diff1 <- read.table(paste0("./output/",dst,"/diff_",cellID,"_",disease.label,"vs",normal.label,outSurfix,".diff"), header = T, sep="\t",check.names = F)
+  disease.label <- "Yes"
+  normal.label <- "No"
+  diff1 <- read.table(paste0("./output/",dst,"/diff_",cellID,"_",disease.label,"vs",normal.label,outSurfix,".diff"), header = TRUE, sep="\t",check.names = FALSE)
   diff1 <- diff1[diff1$feature %in% mRNA_table$ENSG,]
   rownames(diff1) <- mRNA_table$symbol[match(diff1$feature,mRNA_table$ENSG)]
   diff1$feature <- NULL
   
-  disease.label <- "Primary" # "HDA",""
-  normal.label <- "Normal" # "Inactive","HC"
-  diff2 <- read.table(paste0("./output/",dst,"/diff_",cellID,"_",disease.label,"vs",normal.label,outSurfix,".diff"), header = T, sep="\t",check.names = F)
+  disease.label <- "Primary"
+  normal.label <- "Normal"
+  diff2 <- read.table(paste0("./output/",dst,"/diff_",cellID,"_",disease.label,"vs",normal.label,outSurfix,".diff"), header = TRUE, sep="\t",check.names = FALSE)
   diff2 <- diff2[diff2$feature %in% mRNA_table$ENSG,]
   rownames(diff2) <- mRNA_table$symbol[match(diff2$feature,mRNA_table$ENSG)]
   diff2$feature <- NULL
   
   all(rownames(diff1)==rownames(diff2))
-  diffFCcor.list[[cellID]] <- data.frame("HighvsLow"=diff1$log2FoldChange,"SLEvsHC"=diff2$log2FoldChange,
-                                         "HighvsLow.padj"=diff1$padj,"SLEvsHC.padj"=diff2$padj,
+  diffFCcor.list[[cellID]] <- data.frame("metastasis_logFC"=diff1$log2FoldChange,"tumorigenesis_logFC"=diff2$log2FoldChange,
+                                         "metastasis.padj"=diff1$padj,"tumorigenesis.padj"=diff2$padj,
                                          cell=cellID,"feature"=rownames(diff1))
 }
-all(rownames(diff1)==rownames(diff2)) # all T
+all(rownames(diff1)==rownames(diff2))
 diffFCcor.df <- as.data.frame(do.call(rbind,diffFCcor.list))
 diffFCcor.df$cell <- factor(diffFCcor.df$cell, levels = cellShort)
 
 #str(diffFCcor.df)
 p <- 
-  ggplot(data=diffFCcor.df,aes(x=HighvsLow, y=SLEvsHC))+
+  ggplot(data=diffFCcor.df,aes(x=metastasis_logFC, y=tumorigenesis_logFC))+
   geom_point(aes(color=cell), alpha=0.6, size=0.5 ) + # fill="grey",color="grey",
   scale_color_nejm_adaptive() +
   geom_smooth(method='lm', formula= y~x,color="grey30") +
@@ -519,10 +524,7 @@ p <-
 dir.create("output/TCGA_long16/diff")
 ggsave(plot = p, filename = paste0("./output/TCGA_long16/diff/","logFCcor_all",".png"),device = "png", width = 12,height = 10, dpi = 200 ) # , limitsize = FALSE
 
-# for(cellID in cellShort){
-#   # cellID <- "pDC"
-#   message(cellID)
-p <- ggplot(data=diffFCcor.df,aes(x=HighvsLow, y=SLEvsHC))+ # [diffFCcor.df$cell==cellID,]
+p <- ggplot(data=diffFCcor.df,aes(x=metastasis_logFC, y=tumorigenesis_logFC))+ # [diffFCcor.df$cell==cellID,]
   geom_point(alpha=0.5, color="white",aes(fill=cell), size=2, shape=21) + # fill="grey",color="grey",
   scale_fill_nejm_adaptive() +
   geom_smooth(method='lm', formula= y~x,color="grey30") +
@@ -553,7 +555,7 @@ ggsave(plot = p, filename = paste0("./output/TCGA_long16/diff/","logFCcor_byCell
 dim(diffFCcor.df)
 this.cells2 <- c("LIHC") #
 res_sum_max5 = diffFCcor.df[diffFCcor.df$cell %in% this.cells2,]
-colnames(res_sum_max5)[1:2] <- c("metastasis_logFC","tumorigenesis_logFC") # "HDAvsLDA" "LDAvsHC"  "cell"
+colnames(res_sum_max5)[1:2] <- c("metastasis_logFC","tumorigenesis_logFC")
 log2FC.cutoff <- 10
 res_sum_max5$tumorigenesis_logFC[res_sum_max5$tumorigenesis_logFC> log2FC.cutoff] = log2FC.cutoff
 res_sum_max5$tumorigenesis_logFC[res_sum_max5$tumorigenesis_logFC< -log2FC.cutoff] = -log2FC.cutoff
@@ -561,14 +563,14 @@ res_sum_max5$metastasis_logFC[res_sum_max5$metastasis_logFC> log2FC.cutoff] = lo
 res_sum_max5$metastasis_logFC[res_sum_max5$metastasis_logFC< -log2FC.cutoff] = -log2FC.cutoff
 padj.cutoff <- 0.05
 res_sum_max5$DEGtype <- "NA"
-res_sum_max5$DEGtype[(res_sum_max5$HighvsLow.padj > padj.cutoff) & (res_sum_max5$SLEvsHC.padj > padj.cutoff)] <- "Not significant"
-res_sum_max5$DEGtype[(res_sum_max5$HighvsLow.padj <= padj.cutoff) & (res_sum_max5$SLEvsHC.padj > padj.cutoff)] <- "Metastasis only"
-res_sum_max5$DEGtype[(res_sum_max5$HighvsLow.padj > padj.cutoff) & (res_sum_max5$SLEvsHC.padj <= padj.cutoff)] <- "Tumorigenesis only"
-res_sum_max5$DEGtype[(res_sum_max5$HighvsLow.padj <= padj.cutoff) & (res_sum_max5$SLEvsHC.padj <= padj.cutoff)] <- "Both significant"
+res_sum_max5$DEGtype[(res_sum_max5$metastasis.padj > padj.cutoff) & (res_sum_max5$tumorigenesis.padj > padj.cutoff)] <- "Not significant"
+res_sum_max5$DEGtype[(res_sum_max5$metastasis.padj <= padj.cutoff) & (res_sum_max5$tumorigenesis.padj > padj.cutoff)] <- "Metastasis only"
+res_sum_max5$DEGtype[(res_sum_max5$metastasis.padj > padj.cutoff) & (res_sum_max5$tumorigenesis.padj <= padj.cutoff)] <- "Tumorigenesis only"
+res_sum_max5$DEGtype[(res_sum_max5$metastasis.padj <= padj.cutoff) & (res_sum_max5$tumorigenesis.padj <= padj.cutoff)] <- "Both significant"
 res_sum_max5$DEGtype <- factor(res_sum_max5$DEGtype,levels = c("Not significant","Metastasis only","Tumorigenesis only","Both significant"))
 res_sum_max5$cell <- factor(res_sum_max5$cell, levels = this.cells2)
 res_sum_max5$siggroup005 <- res_sum_max5$DEGtype
-res_sum_max5 = res_sum_max5[order(res_sum_max5$siggroup005,decreasing = F),]
+res_sum_max5 = res_sum_max5[order(res_sum_max5$siggroup005,decreasing = FALSE),]
 res_sum_max5 <- left_join(res_sum_max5, splitPeakFeatureID(unique(res_sum_max5$feature)), by="feature")
 table(res_sum_max5$cell,res_sum_max5$DEGtype)
 #label_group = c("Not significant","Tumorigenesis only","Metastasis only","Both significant")
@@ -608,9 +610,9 @@ ggsave(plot = p, filename = paste0("./output/TCGA_long16/diff/","logFCcor_byCell
 
 
 # diff TCGA_long16 long diff candidates (merge diffTable and MetaTable) ---------------------
-this.cells <- c("LIHC") # "pDC"
-dir.create(paste0(diffpre, "/output/",dst,"/candidate/"),recursive = T,showWarnings = F)
-dir.create(paste0("/lulabdata3/baopengfei/smb/TCGA_longRNA_candidate"),recursive = T,showWarnings = F)
+this.cells <- c("LIHC")
+dir.create(paste0(diffpre, "/output/",dst,"/candidate/"),recursive = TRUE,showWarnings = FALSE)
+dir.create(file.path(SMB_DIR, "TCGA_longRNA_candidate"),recursive = TRUE,showWarnings = FALSE)
 # library(xlsx)
 #install.packages("xlsx")
 for(cellID in this.cells){
@@ -630,14 +632,14 @@ for(cellID in this.cells){
       message("skip ",x)
       next
     } 
-    tmp.diff <- read.table( x, header = T, sep = "\t", check.names = F) # row.names=1, 
+    tmp.diff <- read.table( x, header = TRUE, sep = "\t", check.names = FALSE) # row.names=1, 
     tmp.diff <- tmp.diff[tmp.diff$feature %in% mRNA_table$ENSG,]
     rownames(tmp.diff) <- mRNA_table$symbol[match(tmp.diff$feature,mRNA_table$ENSG)]
     tmp.diff$feature <- NULL
     
     tmp.diff2 <- filterDiffTabByP(diff = tmp.diff, pvalue = 0.01, padj = 0.01, abs.log2FC = 1) # 466/32139
     tmp.diff2 <- filterDiffTabByTopN(diff = tmp.diff, N = 5000, rankBy = "pvalue", countBy = "trend")
-    # tmp.diff2 <- tmp.diff2[,grepl("logCPM|log2FoldChange|pvalue|padj|baseMean", colnames(tmp.diff2), perl = T)]
+    # tmp.diff2 <- tmp.diff2[,grepl("logCPM|log2FoldChange|pvalue|padj|baseMean", colnames(tmp.diff2), perl = TRUE)]
     
     colnames(tmp.diff2) <- paste0(cellID,"_", colnames(tmp.diff2)) # 304 --> 914 (PNK)
     
@@ -651,7 +653,7 @@ for(cellID in this.cells){
     #consensus.diff <- consensus.diff[(consensus.diff$plasmaDT2_log2FoldChange * consensus.diff$plasmaMIR_log2FoldChange) > 0,] # 19 left
     
     # append peak meta
-    consensus.diff <- consensus.diff[,grepl("logCPM|log2FoldChange|pvalue|padj|baseMean", colnames(consensus.diff), perl = T)] # PeakID
+    consensus.diff <- consensus.diff[,grepl("logCPM|log2FoldChange|pvalue|padj|baseMean", colnames(consensus.diff), perl = TRUE)] # PeakID
     # colnames(consensus.diff)[1] <- "name"
     consensus.diff$name <- rownames(consensus.diff)
     mRNA_table_tmp <- mRNA_table
@@ -660,14 +662,11 @@ for(cellID in this.cells){
     
     consensus.diff <- consensus.diff[consensus.diff$RNA!="-",]
     consensus.diff[,c("RNA","symbol")] <- NULL
-    # write.table(tmp, paste0(diffpre, "/output/",dst,"/candidate/",cellID,"_",disease.label,"vs",normal.label,"_candidate_diff_summary.txt") , sep = "\t",row.names = F,col.names = T, quote = F)
-    write.table(consensus.diff, paste0(diffpre, "/output/",dst,"/candidate/",cellID,"_",disease.label,"vs",normal.label,"_candidate_diff_summary.txt") , sep = "\t",row.names = F,col.names = T)
+    # write.table(tmp, paste0(diffpre, "/output/",dst,"/candidate/",cellID,"_",disease.label,"vs",normal.label,"_candidate_diff_summary.txt") , sep = "\t",row.names = FALSE,col.names = TRUE, quote = FALSE)
+    write.table(consensus.diff, paste0(diffpre, "/output/",dst,"/candidate/",cellID,"_",disease.label,"vs",normal.label,"_candidate_diff_summary.txt") , sep = "\t",row.names = FALSE,col.names = TRUE)
     
     # # export simplified to multiple xlsx sheets
-    # tmp <- tmp[,!grepl("site_overlap_base|site_overlap_ratio|gn_thickStart|gn_thickEnd|gn_itemRgb|entrez|biotype|description|MFE_structure|intraPair|peptide|coding_label",colnames(tmp),perl = T)]
-    # xlsx::write.xlsx(tmp, file=paste0("/lulabdata3/baopengfei/smb/SLE_sncRNA_candidate/candidate_summary.xlsx"), sheetName=paste0(cellID,"_",disease.label,"vs",normal.label), append=TRUE, row.names=FALSE)
-    # 
-    # write.table(tmp, paste0("/lulabdata3/baopengfei/smb/SLE_sncRNA_candidate/",cellID,"_",disease.label,"vs",normal.label,"_candidate_diff_summary.txt") , sep = "\t",row.names = F,col.names = T, quote = F)
+    # tmp <- tmp[,!grepl("site_overlap_base|site_overlap_ratio|gn_thickStart|gn_thickEnd|gn_itemRgb|entrez|biotype|description|MFE_structure|intraPair|peptide|coding_label",colnames(tmp),perl = TRUE)]
   }
 }
 #
@@ -684,7 +683,7 @@ library(dplyr)
 library(tidyr)
 library(ggsignif)
 
-# 假设基因名为gene_name, 可以指定该基因的logTPM数据进行绘图
+# logTPM of one or more candidate genes, for the boxplots below
 cand.mRNA <- list()
 for(cellID in this.cells){
   # cellID <- "LIHC"
@@ -697,7 +696,7 @@ for(cellID in this.cells){
     disease.label <- cmp.df[i,"pos.grp"]
     normal.label <- cmp.df[i,"neg.grp"]
     col.grp <- cmp.df[i,"col"]
-    cand.mRNA[[paste0(cellID,"|",i)]] <- read.table(paste0(diffpre, "/output/",dst,"/candidate/",cellID,"_",disease.label,"vs",normal.label,"_candidate_diff_summary.txt") , sep = "\t",check.names = F, header = T)
+    cand.mRNA[[paste0(cellID,"|",i)]] <- read.table(paste0(diffpre, "/output/",dst,"/candidate/",cellID,"_",disease.label,"vs",normal.label,"_candidate_diff_summary.txt") , sep = "\t",check.names = FALSE, header = TRUE)
   }
 }
 # names(cand.mRNA)
@@ -710,7 +709,6 @@ goi.cand <- goi[goi %in% cand.mRNA]
 
 
 # tname <- rnase_proteins # filter diff
-# this.peak.ids <- unique(mRNA_table$ENSG[mRNA_table$symbol %in% tname])  # 替换为你要绘制的基因名
 this.peak.ids <- c("IGF2BP1","PEG10","EEF1A2")  #goi.cand
 # this.peak.ids <- rnase_genes
 this.cells <- "LIHC" # c("LUAD","HNSC","LIHC","BRCA")
@@ -722,7 +720,7 @@ logcpm <- logcpm0 #logcpm0[,sample.table$sample]
 dim(logcpm)
 
 library(dplyr)
-#gene.mat <- read.table("./output/rna-matrix/rna-matrix/CPM-TMM_matrix_gene.txt",sep = "\t",header = T, row.names = 1,check.names = F)
+#gene.mat <- read.table("./output/rna-matrix/rna-matrix/CPM-TMM_matrix_gene.txt",sep = "\t",header = TRUE, row.names = 1,check.names = FALSE)
 # tmp.feature <- 
 
 gene.mat <- as.data.frame(t(logcpm[(rownames(logcpm)) %in% this.peak.ids,]))
@@ -733,7 +731,7 @@ gene.mat.t$sample <- rownames(gene.mat.t)
 gene.mat.t <- left_join(gene.mat.t,sample.table,by="sample")
 dim(gene.mat.t)
 ## plot expr&pathway expr
-dir.create(paste0(diffpre,"/output/",dst,"/candidate/"),showWarnings = F,recursive = T)
+dir.create(paste0(diffpre,"/output/",dst,"/candidate/"),showWarnings = FALSE,recursive = TRUE)
 # dir.create("./output/candidate/")
 for (g in this.peak.ids){
   # g <- "DROSHA"
@@ -768,7 +766,7 @@ for (g in this.peak.ids){
     xlab("") +
     ggpubr::stat_compare_means(
       comparisons = list( c("Normal","Primary"),c("Primary","Metastasis"),c("Normal","Metastasis") ),
-      label.x.npc = 0.5,hide.ns=F,size =8, vjust = 0.5, step.increase = 0.06,#paired = TRUE,
+      label.x.npc = 0.5,hide.ns=FALSE,size =8, vjust = 0.5, step.increase = 0.06,#paired = TRUE,
       aes(label = p.signif), # p.signif, group = Group,
       symnum.args=list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05,1),symbols = c( "****","***", "**", "*", "ns")),
       method = "wilcox.test") +

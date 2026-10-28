@@ -1,6 +1,9 @@
-setwd("/lulabdata3/baopengfei/projects/motif-RBP-EDA/")
-options(scipen = 4,stringsAsFactors = F,digits = 5)
-options(bedtools.path = "/lulabdata3/baopengfei/biosoft")
+# Loaded by TCGA_sncRNA_cfPeak.R. Paths and global options come from
+# scripts/config.R, which therefore has to be sourced first; the sourcing
+# script is expected to run from the repository root.
+if (!exists("PROJECT_DIR")) source("scripts/config.R")
+setwd(PROJECT_DIR)
+
 library(bedtoolsr)
 library(plyr)      # Load plyr BEFORE dplyr to avoid conflicts
 library(tidyr)
@@ -12,28 +15,24 @@ conflict_prefer("colnames", "base")
 conflict_prefer("count", "dplyr")
 
 # load all func.
-source("/lulabdata3/baopengfei/projects/WCHSU-FTC/exSeek-dev/scripts/util.R")
-source("/lulabdata3/baopengfei/projects/motif-RBP-EDA/scripts/lulab/sncRNA_utils.R")
-source("/lulabdata3/baopengfei/shared_utils/stats.R")
+source(file.path(EXSEEK_SCRIPTS_DIR, "util.R"))
+source(file.path(PROJECT_DIR, "scripts", "lulab", "sncRNA_utils.R"))
+source(file.path(SHARED_UTILS_DIR, "stats.R"))
 
-# read sncRNA/peak tab/mat 
-dst <- "TCGA_small16" # TCGA_small16
-dedup <- "_all"
-diffpre <- "/lulabdata3/baopengfei/projects/motif-RBP-EDA"
-pre="/lulabdata3/baopengfei/projects/WCHSU-FTC"
-outpre="/lulabdata3/baopengfei/projects/WCHSU-FTC" 
-dir.create(paste0(diffpre,"/output/",dst),recursive = T,showWarnings = F) # ,"/",disease.label,"vs",normal.label
+# read sncRNA/peak tab/mat
+# dst, dedup, pre, outpre and diffpre are defined in scripts/config.R
+dir.create(paste0(diffpre,"/output/",dst),recursive = TRUE,showWarnings = FALSE)
 
 
 ## table1: read sample meta
-sample.table0 <- read.csv( paste0(pre,"/exSeek-dev/data/",dst,"/sample_table.txt"),check.names = F,sep = "\t",header = T,encoding="UTF-8")
+sample.table0 <- read.csv( paste0(pre,"/exSeek-dev/data/",dst,"/sample_table.txt"),check.names = FALSE,sep = "\t",header = TRUE,encoding="UTF-8")
 rownames(sample.table0) <- sample.table0$sample
 table(sample.table0$group)
 table(sample.table0$cell)
 
 
 # replace new clinica from TCGAbiolinks
-tmp <- data.table::fread("/lulabdata3/baopengfei/projects/tcga/data/TCGA-all_clinical/TCGAbiolinks_clinical.tsv",data.table = F,sep = '\t',header = T,stringsAsFactors = F,check.names = F)
+tmp <- data.table::fread(file.path(TCGA_DIR, "data", "TCGA-all_clinical", "TCGAbiolinks_clinical.tsv"),data.table = FALSE,sep = '\t',header = TRUE,stringsAsFactors = FALSE,check.names = FALSE)
 colnames(tmp)[1] <- "patient"
 tmp <- tmp[,c("patient","project","age","gender","race","ajcc_stage","ajcc_n","prior_treatment","cigarettes_per_day","years_smoked","days_to_death")]
 
@@ -44,13 +43,13 @@ sample.table0 <- dplyr::left_join(sample.table0, tmp, by="patient")
 table(sample.table0$ajcc_stage)
 sample.table0$tumor_stage <- sample.table0$ajcc_stage
 
-tmp <- read.table(paste0("/lulabdata3/baopengfei/projects/tcga/data/TCGA-all_clinical/","UCEC","_clinical/","UCEC","_clinical.tsv"), quote = "",sep = "\t", header = T) # HNSC_gdc_sample_sheet.2024-01-09.tsv
+tmp <- read.table(paste0(TCGA_DIR,"/data/TCGA-all_clinical/","UCEC","_clinical/","UCEC","_clinical.tsv"), quote = "",sep = "\t", header = TRUE)
 tmp <- tmp[,c("submitter_id","figo_stage")]
 colnames(tmp) <- c("patient","figo_stage")
 sample.table0 <- dplyr::left_join(sample.table0, tmp, by="patient")
 sample.table0$tumor_stage[sample.table0$cell %in% c("TCGA-UCEC_small")] <- sample.table0$figo_stage[sample.table0$cell %in% c("TCGA-UCEC_small")]
 
-tmp <- read.table(paste0("/lulabdata3/baopengfei/projects/tcga/data/TCGA-all_clinical/","HNSC","_clinical/","HNSC","_clinical.tsv"), quote = "",sep = "\t", header = T) # HNSC_gdc_sample_sheet.2024-01-09.tsv
+tmp <- read.table(paste0(TCGA_DIR,"/data/TCGA-all_clinical/","HNSC","_clinical/","HNSC","_clinical.tsv"), quote = "",sep = "\t", header = TRUE)
 table(tmp$ajcc_clinical_stage)
 tmp <- tmp[,c("submitter_id","ajcc_clinical_stage")]
 colnames(tmp) <- c("patient","ajcc_clinical_stage")
@@ -58,20 +57,20 @@ sample.table0 <- dplyr::left_join(sample.table0, tmp, by="patient")
 sample.table0$tumor_stage[sample.table0$cell %in% c("TCGA-HNSC_small")] <- sample.table0$ajcc_clinical_stage[sample.table0$cell %in% c("TCGA-HNSC_small")]
 
 sample.table0$tumor_stage <- tolower(sample.table0$tumor_stage)
-sample.table0$tumor_stage <- gsub("stage ia|stage ib|stage ic","stage i",sample.table0$tumor_stage, perl = T)
-sample.table0$tumor_stage <- gsub("stage iia|stage iib|stage iic","stage ii",sample.table0$tumor_stage, perl = T)
-sample.table0$tumor_stage <- gsub("stage iiic1|stage iiic2|stage iii1|stage iii2|stage iiia|stage iiib|stage iiic","stage iii",sample.table0$tumor_stage, perl = T)
-sample.table0$tumor_stage <- gsub("stage iva|stage ivb|stage ivc","stage iv",sample.table0$tumor_stage, perl = T)
-sample.table0$tumor_stage <- gsub("stage x","",sample.table0$tumor_stage, perl = T)
-sample.table0$tumor_stage <- gsub("t2a|t2b|t2c|t2d","stage ii",sample.table0$tumor_stage, perl = T)
-sample.table0$tumor_stage <- gsub("t3a|t3b|t3c|t3d","stage iii",sample.table0$tumor_stage, perl = T)
-sample.table0$tumor_stage <- gsub("t4a|t4b|t4c|t4d|t4","stage iv",sample.table0$tumor_stage, perl = T)
-sample.table0$tumor_stage <- gsub("n0","stage i",sample.table0$tumor_stage, perl = T)
-sample.table0$tumor_stage <- gsub("n1","stage i",sample.table0$tumor_stage, perl = T)
-sample.table0$tumor_stage <- gsub("n2a|n2b|n2c|n2d|n2","stage iii",sample.table0$tumor_stage, perl = T)
-sample.table0$tumor_stage <- gsub("n3a|n3b|n3c|n3d|n3","stage iii",sample.table0$tumor_stage, perl = T)
-sample.table0$tumor_stage <- gsub("n4a|n4b|n4c|n4d|n4","stage iv",sample.table0$tumor_stage, perl = T)
-sample.table0$tumor_stage <- gsub("nx","",sample.table0$tumor_stage, perl = T)
+sample.table0$tumor_stage <- gsub("stage ia|stage ib|stage ic","stage i",sample.table0$tumor_stage, perl = TRUE)
+sample.table0$tumor_stage <- gsub("stage iia|stage iib|stage iic","stage ii",sample.table0$tumor_stage, perl = TRUE)
+sample.table0$tumor_stage <- gsub("stage iiic1|stage iiic2|stage iii1|stage iii2|stage iiia|stage iiib|stage iiic","stage iii",sample.table0$tumor_stage, perl = TRUE)
+sample.table0$tumor_stage <- gsub("stage iva|stage ivb|stage ivc","stage iv",sample.table0$tumor_stage, perl = TRUE)
+sample.table0$tumor_stage <- gsub("stage x","",sample.table0$tumor_stage, perl = TRUE)
+sample.table0$tumor_stage <- gsub("t2a|t2b|t2c|t2d","stage ii",sample.table0$tumor_stage, perl = TRUE)
+sample.table0$tumor_stage <- gsub("t3a|t3b|t3c|t3d","stage iii",sample.table0$tumor_stage, perl = TRUE)
+sample.table0$tumor_stage <- gsub("t4a|t4b|t4c|t4d|t4","stage iv",sample.table0$tumor_stage, perl = TRUE)
+sample.table0$tumor_stage <- gsub("n0","stage i",sample.table0$tumor_stage, perl = TRUE)
+sample.table0$tumor_stage <- gsub("n1","stage i",sample.table0$tumor_stage, perl = TRUE)
+sample.table0$tumor_stage <- gsub("n2a|n2b|n2c|n2d|n2","stage iii",sample.table0$tumor_stage, perl = TRUE)
+sample.table0$tumor_stage <- gsub("n3a|n3b|n3c|n3d|n3","stage iii",sample.table0$tumor_stage, perl = TRUE)
+sample.table0$tumor_stage <- gsub("n4a|n4b|n4c|n4d|n4","stage iv",sample.table0$tumor_stage, perl = TRUE)
+sample.table0$tumor_stage <- gsub("nx","",sample.table0$tumor_stage, perl = TRUE)
 sample.table0$group <- gsub("01A","Tumor",sample.table0$group)
 sample.table0$group <- gsub("11A","Normal",sample.table0$group)
 sample.table0$tumor_stage[sample.table0$group=="Normal"] <- "-"
@@ -81,18 +80,18 @@ table(sample.table0$tumor_stage)
 sample.table0$tumor_stage[sample.table0$tumor_stage==""] <- "NA"
 
 ## table2: read count mat
-#count <- read.table( paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1.txt"),header = T,sep = "\t",stringsAsFactors = F,check.names = F)
-count0 <- data.table::fread( paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1.txt"), header = T,sep = "\t",stringsAsFactors = F,check.names = F, data.table = F)
-#count0 <- data.table::fread( paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1_1042_rmPatient.txt"), header = T,sep = "\t",stringsAsFactors = F,check.names = F, data.table = F)
-#count0 <- data.table::fread( paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1_1041_rmDate.txt"), header = T,sep = "\t",stringsAsFactors = F,check.names = F, data.table = F)
+#count <- read.table( paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1.txt"),header = TRUE,sep = "\t",stringsAsFactors = FALSE,check.names = FALSE)
+count0 <- data.table::fread( paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1.txt"), header = TRUE,sep = "\t",stringsAsFactors = FALSE,check.names = FALSE, data.table = FALSE)
+#count0 <- data.table::fread( paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1_1042_rmPatient.txt"), header = TRUE,sep = "\t",stringsAsFactors = FALSE,check.names = FALSE, data.table = FALSE)
+#count0 <- data.table::fread( paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1_1041_rmDate.txt"), header = TRUE,sep = "\t",stringsAsFactors = FALSE,check.names = FALSE, data.table = FALSE)
 rownames(count0) <- count0$feature
 count0$feature <- NULL
 
 
 ## define common vec/var
 cmp.df <- data.frame(row.names=c("state","tumorigenesis","metastasis","relapse"),"col"=c("group","group1","group2","group3"),"pos.grp"=c("Tumor","Primary","Yes","Relapse"),"neg.grp"=c("Normal","Normal","No","Primary"))
-sample.table0$group <- gsub("01A","Tumor",sample.table0$group, perl = T)
-sample.table0$group <- gsub("11A","Normal",sample.table0$group, perl = T)
+sample.table0$group <- gsub("01A","Tumor",sample.table0$group, perl = TRUE)
+sample.table0$group <- gsub("11A","Normal",sample.table0$group, perl = TRUE)
 sample.table0$group2 <- ""
 sample.table0$group2[sample.table0$group=="Tumor" ] <- "NA"
 sample.table0$group2[sample.table0$tumor_stage %in% c("stage i","stage ia","stage ib","stage ii","stage iia","stage iib") & sample.table0$group=="Tumor" ] <- "No"
@@ -110,7 +109,7 @@ table(sample.table0$cell,sample.table0$group1)
 
 ## update sample tables by latest peak matrix
 sample.table0 <- sample.table0[sample.table0$sample %in% colnames(count0),]
-sample.table0$cellShort <- gsub("TCGA-|_small","",sample.table0$cell,perl = T)
+sample.table0$cellShort <- gsub("TCGA-|_small","",sample.table0$cell,perl = TRUE)
 sample.table0$cell <- sample.table0$cellShort
 
 table(sample.table0$race)
@@ -120,7 +119,7 @@ sample.table0$race[sample.table0$race=="black or african american"] <- "black"
 sample.table0$race[sample.table0$race=="not reported"] <- "NA"
 sample.table0$race[sample.table0$race==""] <- "NA"
 
-cell.table <- read.table("/lulabdata3/baopengfei/projects/WCHSU-FTC/exSeek-dev/data/TCGA_small16/TCGA_superclass.txt",header = T,check.names = F,sep = "\t")
+cell.table <- read.table(paste0(DATA_DIR,"/exSeek-dev/data/",dst,"/TCGA_superclass.txt"),header = TRUE,check.names = FALSE,sep = "\t")
 #table(sample.table0$cell %in% cell.table$Cancer)
 cell.table <- cell.table[cell.table$Cancer %in% unique(sample.table0$cell),]
 colnames(cell.table)[c(1,4)] <- c("cell","lineage")
@@ -190,7 +189,7 @@ lineageColor <- c(
 cell.table$lineage <- factor(cell.table$lineage,levels = lineageShort)
 cell.table$cellShort <- factor(cell.table$cellShort,levels = cellShort)
 table(cell.table$lineage)
-cell.table <- cell.table[order(cell.table$lineage,cell.table$cellShort,decreasing = F),]
+cell.table <- cell.table[order(cell.table$lineage,cell.table$cellShort,decreasing = FALSE),]
 colorList[["lineage"]] <- lineageColor
 
 groupShort <- c("Normal","Tumor")
@@ -224,7 +223,7 @@ colorList[['precursor']] <- RNA_colors
 
 
 ## append ESTIMATE purity et al
-tmp <- data.table::fread(file = "/lulabdata3/baopengfei/projects/tcga/ref/TCGAbiolinks_ESTIMATE.txt",sep = "\t",header = T, check.names = F, stringsAsFactors = F,data.table = F)
+tmp <- data.table::fread(file = file.path(TCGA_DIR, "ref", "TCGAbiolinks_ESTIMATE.txt"),sep = "\t",header = TRUE, check.names = FALSE, stringsAsFactors = FALSE,data.table = FALSE)
 tmp <- tmp[,c(1,3:ncol(tmp))]
 colnames(tmp)[1] <- "tissue_id"
 sample.table0 <- dplyr::left_join(sample.table0,tmp,by="tissue_id")
@@ -234,16 +233,7 @@ rownames(sample.table0) <- sample.table0$sample
 # cor.test(sample.table0$CPE,sample.table0$IHC)
 
 ## append purity metainfo
-# priList <- list()
-# for (i in paste0("/lulabdata3/wangtaiwei/project/RNA/SLE/output/ImmReg/pan_cancer/",cellShort,"_purity_scores.txt") ){
-#   purity <- read.table(i,header = T,row.names = 1,check.names = F,stringsAsFactors = F,sep = "\t")
-#   # table(duplicated(purity$sample))
-#   purity$tissue_id <- substr(purity$sample,1,16)
-#   priList[[i]] <- purity
-# }
-# priList <- as.data.frame(do.call(rbind,priList))
-# data.table::fwrite(priList,paste0(pre,"/exSeek-dev/data/",dst,"/purity.txt"),quote = F, sep = '\t',row.names = F,col.names = T )
-tmp <- data.table::fread(file = paste0(pre,"/exSeek-dev/data/",dst,"/purity.txt"),sep = "\t",header = T, check.names = F, stringsAsFactors = F,data.table = F)
+tmp <- data.table::fread(file = paste0(pre,"/exSeek-dev/data/",dst,"/purity.txt"),sep = "\t",header = TRUE, check.names = FALSE, stringsAsFactors = FALSE,data.table = FALSE)
 tmp <- tmp[tmp$tissue_id %in% sample.table0$tissue_id,]
 table(sample.table0$tissue_id %in% tmp$tissue_id)
 
@@ -254,8 +244,8 @@ sample.table0 <- dplyr::left_join(sample.table0,tmp,by="tissue_id")
 sample.table0$purity <- as.numeric(sample.table0$purity)
 #table(is.na(sample.table0$purity))
 #tmp2 <- sample.table0[is.na(sample.table0$purity),]
-#data.table::fwrite(tmp2,paste0(pre,"/exSeek-dev/data/",dst,"/purity_NA.txt"),quote = F, sep = '\t',row.names = F,col.names = T ) # not matched mRNA-seq ?
-#data.table::fwrite(x = sample.table0, paste0(pre,"/exSeek-dev/data/",dst,"/sample_table2.txt"), sep = "\t", quote = F, row.names = F, col.names = T )
+#data.table::fwrite(tmp2,paste0(pre,"/exSeek-dev/data/",dst,"/purity_NA.txt"),quote = FALSE, sep = '\t',row.names = FALSE,col.names = TRUE ) # not matched mRNA-seq ?
+#data.table::fwrite(x = sample.table0, paste0(pre,"/exSeek-dev/data/",dst,"/sample_table2.txt"), sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE )
 rownames(sample.table0) <- sample.table0$sample
 #some samples lost for NA purity
 sample.table0 <- sample.table0[!is.na(sample.table0$purity),]
@@ -263,27 +253,27 @@ sample.table0 <- sample.table0[!is.na(sample.table0$purity),]
 
 ## get libsize
 libSizePath <- paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/EM.libSize")
-tmp <- read.table(libSizePath,header = F,sep = "\t",check.names = F,row.names = 1)
+tmp <- read.table(libSizePath,header = FALSE,sep = "\t",check.names = FALSE,row.names = 1)
 # tmp <- tmp[colnames(count),]
-tmp <- tmp[sample.table0$sample,,drop=F]
+tmp <- tmp[sample.table0$sample,,drop=FALSE]
 externalLibSize <- tmp$V2 #[,"star_hg38_v38_dedup"]
 #names(externalLibSize) <- colnames(count) # [2:ncol(count)]
 names(externalLibSize) <- sample.table0$sample
 
 
 # ## optional table7: read peak diff table
-# #diff.sum.df <- read.table(paste0(diffpre,"/output/",dst,"/cfPeakCNN_smallDomain_diff.summary"), quote = "",sep = "\t",header = T,check.names = F,stringsAsFactors = F)
-# diff.sum.df <- data.table::fread(paste0(diffpre,"/output/",dst,"/cfPeakCNN_smallDomain_diff.summary"), quote = "",sep = "\t",header = T,check.names = F,stringsAsFactors = F,data.table=F)
-# #diff.sum.df.sig2 <- read.table(paste0(diffpre,"/output/",dst,"/cfPeakCNN_smallDomain_diffSig.summary"), quote = "",sep = "\t",header = T,check.names = F,stringsAsFactors = F)
-# diff.sum.df.sig2 <- data.table::fread(paste0(diffpre,"/output/",dst,"/cfPeakCNN_smallDomain_diffSig.summary"), quote = "",sep = "\t",header = T,check.names = F,stringsAsFactors = F,data.table=F)
-# #diff.sum.df.cellFreq <- read.table(paste0(diffpre,"/output/",dst,"/cell_diff.summary"), quote = "",sep = "\t",header = T,check.names = F,stringsAsFactors = F)
-# diff.sum.df.cellFreq <- data.table::fread(paste0(diffpre,"/output/",dst,"/cell_diff.summary"), quote = "",sep = "\t",header = T,check.names = F,stringsAsFactors = F,data.table=F)
+# #diff.sum.df <- read.table(paste0(diffpre,"/output/",dst,"/cfPeakCNN_smallDomain_diff.summary"), quote = "",sep = "\t",header = TRUE,check.names = FALSE,stringsAsFactors = FALSE)
+# diff.sum.df <- data.table::fread(paste0(diffpre,"/output/",dst,"/cfPeakCNN_smallDomain_diff.summary"), quote = "",sep = "\t",header = TRUE,check.names = FALSE,stringsAsFactors = FALSE,data.table=FALSE)
+# #diff.sum.df.sig2 <- read.table(paste0(diffpre,"/output/",dst,"/cfPeakCNN_smallDomain_diffSig.summary"), quote = "",sep = "\t",header = TRUE,check.names = FALSE,stringsAsFactors = FALSE)
+# diff.sum.df.sig2 <- data.table::fread(paste0(diffpre,"/output/",dst,"/cfPeakCNN_smallDomain_diffSig.summary"), quote = "",sep = "\t",header = TRUE,check.names = FALSE,stringsAsFactors = FALSE,data.table=FALSE)
+# #diff.sum.df.cellFreq <- read.table(paste0(diffpre,"/output/",dst,"/cell_diff.summary"), quote = "",sep = "\t",header = TRUE,check.names = FALSE,stringsAsFactors = FALSE)
+# diff.sum.df.cellFreq <- data.table::fread(paste0(diffpre,"/output/",dst,"/cell_diff.summary"), quote = "",sep = "\t",header = TRUE,check.names = FALSE,stringsAsFactors = FALSE,data.table=FALSE)
 
 
 
 
 # ## rm batch in TPM/CPM
-logcpm0 <- data.table::fread( paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1_CPM_rmPurity.txt"), sep = "\t",check.names = F,header = T,data.table = F,stringsAsFactors = F )
+logcpm0 <- data.table::fread( paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1_CPM_rmPurity.txt"), sep = "\t",check.names = FALSE,header = TRUE,data.table = FALSE,stringsAsFactors = FALSE )
 rownames(logcpm0) <- logcpm0$feature
 logcpm0$feature <- NULL
 summary(logcpm0[,2])
@@ -300,15 +290,15 @@ dim(logcpm0) # 54354  3436
 # #not change 11RNA types! , only re-assign 4 DNA regions!
 # #check sequential_assign_peak.R
 # # append sncRNA types
-# # sncRNA.table <- data.table::fread( paste0(outpre,"/output/",dst,"/call_peak",dedup,"/cfpeakCNN/gnAssign/snc_assign.txt.bak"), header = T,check.names = F,stringsAsFactors = F,sep = "\t")
-# sncRNA.table <- data.table::fread( paste0(outpre,"/output/",dst,"/call_peak",dedup,"/cfpeakCNN/gnAssign/snc_assign.txt"), header = T,check.names = F,stringsAsFactors = F,sep = "\t")
-# sncRNA.table <- sncRNA.table[order(as.integer(gsub("peak_","",sncRNA.table$name)),decreasing = F),]
+# # sncRNA.table <- data.table::fread( paste0(outpre,"/output/",dst,"/call_peak",dedup,"/cfpeakCNN/gnAssign/snc_assign.txt.bak"), header = TRUE,check.names = FALSE,stringsAsFactors = FALSE,sep = "\t")
+# sncRNA.table <- data.table::fread( paste0(outpre,"/output/",dst,"/call_peak",dedup,"/cfpeakCNN/gnAssign/snc_assign.txt"), header = TRUE,check.names = FALSE,stringsAsFactors = FALSE,sep = "\t")
+# sncRNA.table <- sncRNA.table[order(as.integer(gsub("peak_","",sncRNA.table$name)),decreasing = FALSE),]
 # dim(sncRNA.table)
 # #sncRNA.table[1:13,]  # filterd [10,200]
-# rownames(logcpm0) <- gsub("_rev|_for","",rownames(logcpm0),perl = T)
+# rownames(logcpm0) <- gsub("_rev|_for","",rownames(logcpm0),perl = TRUE)
 # dim(logcpm0)
 # rownames(logcpm0)[1:2]
-# tmp <- strsplit(rownames(logcpm0),"|",fixed=T)
+# tmp <- strsplit(rownames(logcpm0),"|",fixed=TRUE)
 # tmp.all <- unlist(sapply(tmp,"[",1))
 # tmp.region <- unlist(sapply(tmp,"[",2))
 # #knitr::kable(table(tmp.region))
@@ -341,20 +331,20 @@ dim(logcpm0) # 54354  3436
 # summary(logcpm0[,2])
 # rownames(logcpm0)[1:2]
 # data.table::fwrite(cbind("feature"=rownames(logcpm0),logcpm0),
-#                    paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1_CPM_rmPurity.txt"), sep = "\t",quote = F,row.names = F,col.names = T )
+#                    paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1_CPM_rmPurity.txt"), sep = "\t",quote = FALSE,row.names = FALSE,col.names = TRUE )
 # 
 # rownames(count0) <- rownames(logcpm0)
 # rownames(count0)[1:2]
 # data.table::fwrite(cbind("feature"=rownames(count0),count0),
-#                    paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1.txt"), sep = "\t",quote = F,row.names = F,col.names = T )
+#                    paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1.txt"), sep = "\t",quote = FALSE,row.names = FALSE,col.names = TRUE )
 # 
-# real.logcpm0 <- data.table::fread( paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1_log2CPM_rmPurity.txt"), sep = "\t",check.names = F,header = T,data.table = F,stringsAsFactors = F )
+# real.logcpm0 <- data.table::fread( paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1_log2CPM_rmPurity.txt"), sep = "\t",check.names = FALSE,header = TRUE,data.table = FALSE,stringsAsFactors = FALSE )
 # rownames(real.logcpm0) <- real.logcpm0$feature
 # real.logcpm0$feature <- NULL
 # rownames(real.logcpm0) <- rownames(logcpm0)
 # #rownames(real.logcpm0)[1:2]
 # data.table::fwrite(cbind("feature"=rownames(real.logcpm0),real.logcpm0),
-#                    paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1_log2CPM_rmPurity.txt"), sep = "\t",quote = F,row.names = F,col.names = T )
+#                    paste0(outpre,"/output/",dst,"/call_peak",dedup,"/count_matrix/cfpeakCNN_b5_d50_p1_log2CPM_rmPurity.txt"), sep = "\t",quote = FALSE,row.names = FALSE,col.names = TRUE )
 # 
 # 
 # #plot bar (real gn assign)
@@ -394,14 +384,14 @@ dim(logcpm0) # 54354  3436
 
 # filter test Samples after batch removal ------------------------------
 ## table6: read peak meta
-# peak.table <- read.table(paste0(outpre,"/output/",dst,"/call_peak",dedup,"/cfpeakCNN/b5_d50_p1.summary"),header = T,sep = "\t",stringsAsFactors = F,check.names = F,quote = "")
-peak.table <- data.table::fread(paste0(outpre,"/output/",dst,"/call_peak",dedup,"/cfpeakCNN/b5_d50_p1.summary"),header = T,sep = "\t",stringsAsFactors = F,check.names = F,quote = "",data.table = F)
+# peak.table <- read.table(paste0(outpre,"/output/",dst,"/call_peak",dedup,"/cfpeakCNN/b5_d50_p1.summary"),header = TRUE,sep = "\t",stringsAsFactors = FALSE,check.names = FALSE,quote = "")
+peak.table <- data.table::fread(paste0(outpre,"/output/",dst,"/call_peak",dedup,"/cfpeakCNN/b5_d50_p1.summary"),header = TRUE,sep = "\t",stringsAsFactors = FALSE,check.names = FALSE,quote = "",data.table = FALSE)
 table(peak.table$gn_type,peak.table$tx_type)
 rownames(peak.table) <- peak.table$name
 
 
 ## filter
-testID <- read.table( paste0("/lulabdata3/baopengfei/projects/WCHSU-FTC/exSeek-dev/data/",dst,"/sample_ids_test.txt"), header = F,check.names = F,stringsAsFactors = F,sep = "\t")$V1
+testID <- read.table( paste0(DATA_DIR,"/exSeek-dev/data/",dst,"/sample_ids_test.txt"), header = FALSE,check.names = FALSE,stringsAsFactors = FALSE,sep = "\t")$V1
 length(testID) # 2011  2068
 dim(sample.table0) # 3507  3436
 dim(sample.table0)
